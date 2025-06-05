@@ -177,7 +177,8 @@ void Craft::load(const YAML::YamlNodeReader& node, const ScriptGlobal *shared, c
 			if (ruleUnit)
 			{
 				int size = ruleUnit->getArmor()->getTotalSize();
-				Vehicle *v = new Vehicle(ruleItem, 0, size);
+				int space = ruleUnit->getArmor()->getSpaceOccupied();
+				Vehicle *v = new Vehicle(ruleItem, 0, size, space);
 				v->load(vehiclesReader);
 				_vehicles.push_back(v);
 			}
@@ -1448,13 +1449,13 @@ int Craft::getSpaceUsed() const
 	int vehicleSpaceUsed = 0;
 	for (auto* vehicle : _vehicles)
 	{
-		vehicleSpaceUsed += vehicle->getTotalSize();
+		vehicleSpaceUsed += vehicle->getSpaceOccupied();
 	}
 	for (auto* soldier : *_base->getSoldiers())
 	{
 		if (soldier->getCraft() == this)
 		{
-			vehicleSpaceUsed += soldier->getArmor()->getTotalSize();
+			vehicleSpaceUsed += soldier->getArmor()->getSpaceOccupied();
 		}
 	}
 	return vehicleSpaceUsed;
@@ -2188,7 +2189,7 @@ bool Craft::validateArmorChange(int sizeFrom, int sizeTo) const
  */
 CraftPlacementErrors Craft::validateAddingSoldier(int space, const Soldier* s) const
 {
-	if (space < s->getArmor()->getTotalSize())
+	if (space < s->getArmor()->getSpaceOccupied())
 	{
 		return CPE_NotEnoughSpace;
 	}
