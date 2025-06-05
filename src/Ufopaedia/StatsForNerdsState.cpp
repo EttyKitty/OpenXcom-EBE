@@ -2049,7 +2049,7 @@ void StatsForNerdsState::initItemList()
 		addBoolean(ss, rule->RandomStun, "RandomStun", ruleByResistType->RandomStun);
 
 		addFloatAsPercentage(ss, rule->ToWound, "ToWound", ruleByResistType->ToWound);
-		addBoolean(ss, rule->RandomWound, "RandomWound", ruleByResistType->RandomWound);
+		addInteger(ss, rule->RandomWound, "RandomWound", ruleByResistType->RandomWound);
 
 		addFloatAsPercentage(ss, rule->ToTime, "ToTime", ruleByResistType->ToTime);
 		addBoolean(ss, rule->RandomTime, "RandomTime", ruleByResistType->RandomTime);

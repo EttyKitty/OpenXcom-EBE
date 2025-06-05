@@ -107,7 +107,7 @@ struct RuleDamageType
 	/// Damage type use random conversion armor pre damage.
 	bool RandomArmorPre;
 	/// Damage type use random chance for wound number or linear.
-	bool RandomWound;
+	int RandomWound;
 	/// Damage type use random conversion item damage.
 	bool RandomItem;
 	/// Damage type use random conversion tile damage.

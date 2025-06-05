@@ -204,7 +204,7 @@ en-US:
   ToStun: "Stun damage multiplier"
   RandomStun: "Stun damage RNG?"
   ToWound: "Wound count multiplier"
-  RandomWound: "Vanilla wound RNG?"
+  RandomWound: "Wound RNG mode"
   ToTime: "TU damage multiplier"
   RandomTime: "TU damage RNG?"
   ToEnergy: "Energy dmg multiplier"
