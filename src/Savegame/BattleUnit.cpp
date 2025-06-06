@@ -3267,7 +3267,7 @@ bool BattleUnit::addItem(BattleItem *item, const Mod *mod, bool allowSecondClip,
 	bool placed = false;
 	bool loaded = false;
 	const RuleItem *rule = item->getRules();
-	int weight = 0;
+	float weight = 0.0f;
 
 	bool isStandardPlayerUnit = getFaction() == FACTION_PLAYER && hasInventory() && !isSummonedPlayerUnit();
 
@@ -5095,15 +5095,15 @@ BattleUnit *BattleUnit::getCharging()
  * @param draggingItem item to ignore
  * @return weight
  */
-int BattleUnit::getCarriedWeight(BattleItem *draggingItem) const
+float BattleUnit::getCarriedWeight(BattleItem *draggingItem) const
 {
-	int weight = _armor->getWeight();
+	float weight = _armor->getWeight();
 	for (const auto* bi : _inventory)
 	{
 		if (bi == draggingItem) continue;
 		weight += bi->getTotalWeight();
 	}
-	return std::max(0,weight);
+	return std::max(0.0f,weight);
 }
 
 
