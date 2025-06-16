@@ -1824,13 +1824,13 @@ void StatsForNerdsState::addRandomWound(std::ostringstream& ss, const WoundMode&
 	switch (value)
 	{
 	case WoundMode::LINEAR:
-		ss << tr("WRT_LINEAR");
+		ss << tr("WM_LINEAR");
 		break;
 	case WoundMode::VANILLA:
-		ss << tr("WRT_VANILLA");
+		ss << tr("WM_VANILLA");
 		break;
 	case WoundMode::RANDOM:
-		ss << tr("WRT_RANDOM");
+		ss << tr("WM_RANDOM");
 		break;
 	default:
 		ss << tr("STR_UNKNOWN");
