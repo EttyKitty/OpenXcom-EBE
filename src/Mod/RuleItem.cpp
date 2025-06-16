@@ -1005,7 +1005,7 @@ int RuleItem::getTransferTime() const
 
 /**
  * Gets the weight of the item.
- * @return The weight in strength units.
+ * @return The weight as a float.
  */
 float RuleItem::getWeight() const
 {

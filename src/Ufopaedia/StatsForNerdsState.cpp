@@ -1982,7 +1982,7 @@ void StatsForNerdsState::initItemList()
 		}
 	}
 
-	addFloat(ss, itemRule->getWeight(), "weight", 3);
+	addFloat(ss, itemRule->getWeight(), "weight", 3.0f);
 	addInteger(ss, itemRule->getThrowRange(), "throwRange", 200);
 	addInteger(ss, itemRule->getUnderwaterThrowRange(), "underwaterThrowRange", 200);
 
