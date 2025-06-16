@@ -2838,7 +2838,7 @@ void getArmorEffectivenessScript(const RuleDamageType* rdt, int& ret)
 	ret = rdt ? round(rdt->ArmorEffectiveness * 100) : 0;
 }
 
-void getArmorIgnoreScript(const RuleDamageType* rdt, int ret)
+void getArmorIgnoreScript(const RuleDamageType* rdt, int& ret)
 {
 	ret = rdt ? rdt->ArmorIgnore : 0;
 }

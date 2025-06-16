@@ -70,9 +70,9 @@ struct RuleDamageType
 	bool IgnoreNormalMoraleLose;
 	/// Damage type do not move health to negative values.
 	bool IgnoreOverKill;
-	/// How much of armor is ignored (multiplier).
+	/// Multiplier applied to the armor.
 	float ArmorEffectiveness;
-	/// How much of armor is ignored (flat).
+	/// Flat amount of armor ignored.
 	int ArmorIgnore;
 	/// Conversion from power to max explosion radius.
 	float RadiusEffectiveness;
