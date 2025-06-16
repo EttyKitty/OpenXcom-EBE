@@ -1810,6 +1810,48 @@ void StatsForNerdsState::addSoundVectorResourcePaths(std::ostringstream &ss, Mod
 }
 
 /**
+ * Adds a WoundMode to the table.
+ */
+void StatsForNerdsState::addWoundMode(std::ostringstream& ss, const WoundMode& value, const std::string& propertyName, const WoundMode& defaultvalue)
+{
+	if (value == defaultvalue && !_showDefaults)
+	{
+		return;
+	}
+
+	resetStream(ss);
+
+	switch (value)
+	{
+	case WoundMode::LINEAR:
+		ss << tr("WRT_LINEAR");
+		break;
+	case WoundMode::VANILLA:
+		ss << tr("WRT_VANILLA");
+		break;
+	case WoundMode::RANDOM:
+		ss << tr("WRT_RANDOM");
+		break;
+	default:
+		ss << tr("STR_UNKNOWN");
+		break;
+	}
+
+	if (_showIds)
+	{
+		ss << " [" << (int)value << "]";
+	}
+
+	_lstRawData->addRow(2, trp(propertyName).c_str(), ss.str().c_str());
+	++_counter;
+
+	if (value != defaultvalue)
+	{
+		_lstRawData->setCellColor(_lstRawData->getLastRowIndex(), 1, _pink);
+	}
+}
+
+/**
  * Shows the "raw" RuleItem data.
  */
 void StatsForNerdsState::initItemList()
@@ -2049,7 +2091,7 @@ void StatsForNerdsState::initItemList()
 		addBoolean(ss, rule->RandomStun, "RandomStun", ruleByResistType->RandomStun);
 
 		addFloatAsPercentage(ss, rule->ToWound, "ToWound", ruleByResistType->ToWound);
-		addInteger(ss, rule->RandomWound, "RandomWound", ruleByResistType->RandomWound);
+		addWoundMode(ss, rule->RandomWound, "RandomWound", ruleByResistType->RandomWound);
 
 		addFloatAsPercentage(ss, rule->ToTime, "ToTime", ruleByResistType->ToTime);
 		addBoolean(ss, rule->RandomTime, "RandomTime", ruleByResistType->RandomTime);

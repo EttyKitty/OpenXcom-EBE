@@ -33,7 +33,7 @@ RuleDamageType::RuleDamageType() :
 	ArmorEffectiveness(1.0f), RadiusEffectiveness(0.0f), RadiusReduction(10.0f),
 	FireThreshold(1000), SmokeThreshold(1000),
 	ToHealth(1.0f), ToMana(0.0f), ToArmor(0.1f), ToArmorPre(0.0f), ToWound(1.0f), ToItem(0.0f), ToTile(0.5f), ToStun(0.25f), ToEnergy(0.0f), ToTime(0.0f), ToMorale(0.0f),
-	RandomHealth(false), RandomMana(false), RandomArmor(false), RandomArmorPre(false), RandomWound(1), RandomItem(false), RandomTile(false), RandomStun(true), RandomEnergy(false), RandomTime(false), RandomMorale(false),
+	RandomHealth(false), RandomMana(false), RandomArmor(false), RandomArmorPre(false), RandomWound(WoundMode::VANILLA), RandomItem(false), RandomTile(false), RandomStun(true), RandomEnergy(false), RandomTime(false), RandomMorale(false),
 	TileDamageMethod(1)
 {
 
@@ -275,17 +275,19 @@ int RuleDamageType::getWoundFinalDamage(int damage) const
 {
 	if (damage > 0)
 	{
+		int woundPotential = static_cast<int>(std::round(damage * ToWound));
 		switch (RandomWound)
 		{
-			case 1:
-				if (RNG::generate(0, 10) < int(damage * ToWound))
+			case WoundMode::LINEAR:
+				if (RNG::generate(0, 10) < woundPotential)
 				{
 					return RNG::generate(1, 3);
 				}
-			case 0:
-				return (int)std::round(damage * ToWound);
-			case 2:
-				return RNG::generate(0, (int)std::round(damage * ToWound));
+				break;
+			case WoundMode::VANILLA:
+				return woundPotential;
+			case WoundMode::RANDOM:
+				return RNG::generate(0, woundPotential);
 		}
 	}
 	return 0;
