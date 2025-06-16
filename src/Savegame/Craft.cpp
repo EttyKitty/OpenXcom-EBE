@@ -2142,17 +2142,17 @@ int Craft::getNumTotalUnits() const
  * Validates craft space and craft constraints on soldier armor change.
  * @return True, if armor change is allowed.
  */
-bool Craft::validateArmorChange(int sizeFrom, int sizeTo) const
+bool Craft::validateArmorChange(int spaceFrom, int spaceTo) const
 {
-	if (sizeFrom == sizeTo)
+	if (spaceFrom == spaceTo)
 	{
 		return true;
 	}
 	else
 	{
-		if (sizeFrom < sizeTo)
+		if (spaceFrom < spaceTo)
 		{
-			if (getSpaceAvailable() < 3)
+			if (getSpaceAvailable() < (spaceTo - spaceFrom))
 			{
 				return false;
 			}
@@ -2169,7 +2169,7 @@ bool Craft::validateArmorChange(int sizeFrom, int sizeTo) const
 				return false;
 			}
 		}
-		else if (sizeFrom > sizeTo)
+		else if (spaceFrom > spaceTo)
 		{
 			if (_rules->getMaxSmallSoldiers() > -1 && getNumSmallSoldiers() >= _rules->getMaxSmallSoldiers())
 			{
@@ -2187,9 +2187,9 @@ bool Craft::validateArmorChange(int sizeFrom, int sizeTo) const
 /**
  * Validates craft space and craft constraints on adding soldier to a craft.
  */
-CraftPlacementErrors Craft::validateAddingSoldier(int space, const Soldier* s) const
+CraftPlacementErrors Craft::validateAddingSoldier(int availableSpace, const Soldier* s) const
 {
-	if (space < s->getArmor()->getSpaceOccupied())
+	if (availableSpace < s->getArmor()->getSpaceOccupied())
 	{
 		return CPE_NotEnoughSpace;
 	}
