@@ -38,7 +38,7 @@ enum ItemDamageRandomType
 	DRT_EXPLOSION = 9,
 	DRT_UFO_WITH_FOUR_DICE = 10
 };
-enum class WoundMode : int
+enum class ItemWoundRandomType : int
 {
 	VANILLA = 0,
 	LINEAR = 1,
@@ -113,7 +113,7 @@ struct RuleDamageType
 	/// Damage type use random conversion armor pre damage.
 	bool RandomArmorPre;
 	/// Damage type use vanilla wound formula, linear or random conversion.
-	WoundMode RandomWound;
+	ItemWoundRandomType RandomWound;
 	/// Damage type use random conversion item damage.
 	bool RandomItem;
 	/// Damage type use random conversion tile damage.
