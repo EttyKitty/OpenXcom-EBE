@@ -1812,7 +1812,7 @@ void StatsForNerdsState::addSoundVectorResourcePaths(std::ostringstream &ss, Mod
 /**
  * Adds a WoundMode to the table.
  */
-void StatsForNerdsState::addWoundMode(std::ostringstream& ss, const WoundMode& value, const std::string& propertyName, const WoundMode& defaultvalue)
+void StatsForNerdsState::addRandomWound(std::ostringstream& ss, const WoundMode& value, const std::string& propertyName, const WoundMode& defaultvalue)
 {
 	if (value == defaultvalue && !_showDefaults)
 	{
@@ -2091,7 +2091,7 @@ void StatsForNerdsState::initItemList()
 		addBoolean(ss, rule->RandomStun, "RandomStun", ruleByResistType->RandomStun);
 
 		addFloatAsPercentage(ss, rule->ToWound, "ToWound", ruleByResistType->ToWound);
-		addWoundMode(ss, rule->RandomWound, "RandomWound", ruleByResistType->RandomWound);
+		addRandomWound(ss, rule->RandomWound, "RandomWound", ruleByResistType->RandomWound);
 
 		addFloatAsPercentage(ss, rule->ToTime, "ToTime", ruleByResistType->ToTime);
 		addBoolean(ss, rule->RandomTime, "RandomTime", ruleByResistType->RandomTime);
