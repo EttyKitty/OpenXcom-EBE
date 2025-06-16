@@ -2884,10 +2884,14 @@ void BattleUnit::prepareTimeUnits(int tu)
 		setValueMax(_tu, tu, 0, getBaseStats()->tu);
 
 		// Apply reductions, if new TU == 0 then it could make not spend TU decay
-		float encumbrance = (float)getBaseStats()->strength / (float)getCarriedWeight();
-		if (encumbrance < 1.0f)
+		const float carried = getCarriedWeight();
+		if (carried > 0.0f)
 		{
-		  _tu = static_cast<int>(std::round(encumbrance * _tu));
+			const float encumbrance = static_cast<float>(getBaseStats()->strength) / carried;
+			if (encumbrance < 1.0f)
+			{
+				_tu = static_cast<int>(std::round(encumbrance * _tu));
+			}
 		}
 		// Each fatal wound to the left or right leg reduces the soldier's TUs by 10%.
 		_tu -= (_tu * ((_fatalWounds[BODYPART_LEFTLEG]+_fatalWounds[BODYPART_RIGHTLEG]) * 10))/100;
