@@ -951,6 +951,8 @@ public:
 	void setRanOutOfTUs(bool ranOutOfTUs) { _ranOutOfTUs = ranOutOfTUs; }
 	bool getRanOutOfTUs() { return _ranOutOfTUs; }
 
+	std::vector<BattleUnit*> getCloseQuartersTargetList(BattlescapeGame* battle) const;
+
 	/// Multiplier of move cost.
 	ArmorMoveCost getMoveCostBase() const { return _moveCostBase; }
 	/// Multiplier of fly move cost.
