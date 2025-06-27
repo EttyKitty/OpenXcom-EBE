@@ -6360,6 +6360,62 @@ float BattleUnit::getAggressiveness(std::string missionType) const
 	return aggressiveness;
 }
 
+std::vector<BattleUnit*> BattleUnit::getCloseQuartersTargetList(BattlescapeGame* battle) const
+{
+	// Start by finding 'targets' for the check
+	std::vector<BattleUnit*> closeQuartersTargetList;
+	int surroundingTilePositions[8][2] = {
+		{0, -1},   // north (-y direction)
+		{1, -1},   // northeast
+		{1, 0},    // east (+ x direction)
+		{1, 1},    // southeast
+		{0, 1},    // south (+y direction)
+		{-1, 1},   // southwest
+		{-1, 0},   // west (-x direction)
+		{-1, -1}}; // northwest
+	for (int dir = 0; dir < 8; dir++)
+	{
+		Position tileToCheck = _pos;
+		tileToCheck.x += surroundingTilePositions[dir][0];
+		tileToCheck.y += surroundingTilePositions[dir][1];
+
+		if (battle->getSave()->getTile(tileToCheck)) // Make sure the tile is in bounds
+		{
+			BattleUnit* closeQuartersTarget = battle->getSave()->selectUnit(tileToCheck);
+			// Variable for LOS check
+			int checkDirection = battle->getTileEngine()->getDirectionTo(tileToCheck, getPosition());
+			if (closeQuartersTarget && getFaction() != closeQuartersTarget->getFaction()                      // Unit must exist and not be same faction
+				&& closeQuartersTarget->getArmor()->getCreatesMeleeThreat()                                          // Unit must be valid defender, 2x2 default false here
+				&& closeQuartersTarget->getTimeUnits() >= battle->getMod()->getCloseQuartersTuCostGlobal()    // Unit must have enough TUs
+				&& closeQuartersTarget->getEnergy() >= battle->getMod()->getCloseQuartersEnergyCostGlobal()   // Unit must have enough Energy
+				&& battle->getTileEngine()->validMeleeRange(closeQuartersTarget, this, checkDirection)  // Unit must be able to see the unit attempting to fire
+				&& !(getFaction() == FACTION_PLAYER && closeQuartersTarget->getFaction() == FACTION_NEUTRAL)  // Civilians don't inhibit player
+				&& !(getFaction() == FACTION_NEUTRAL && closeQuartersTarget->getFaction() == FACTION_PLAYER)) // Player doesn't inhibit civilians
+			{
+				if (RNG::percent(battle->getMod()->getCloseQuartersSneakUpGlobal()))
+				{
+					if (getFaction() == FACTION_HOSTILE) // alien attacker (including mind-controlled xcom)
+					{
+						if (!closeQuartersTarget->hasVisibleUnit(this))
+						{
+							continue; // the xcom/civilian victim *DOES NOT SEE* the attacker and cannot defend itself
+						}
+					}
+					else // xcom/civilian attacker (including mind-controlled aliens)
+					{
+						if (getTurnsSinceSpotted() > 1)
+						{
+							continue; // the aliens (as a collective) *ARE NOT AWARE* of the attacker and cannot defend themselves
+						}
+					}
+				}
+				closeQuartersTargetList.push_back(closeQuartersTarget);
+			}
+		}
+	}
+	return closeQuartersTargetList;
+}
+
 ////////////////////////////////////////////////////////////
 //					Script binding
 ////////////////////////////////////////////////////////////

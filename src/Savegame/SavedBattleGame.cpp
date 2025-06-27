@@ -1176,6 +1176,11 @@ bool SavedBattleGame::canUseWeapon(const BattleItem* weapon, const BattleUnit* u
 		if (message) *message = "STR_MUST_USE_BOTH_HANDS";
 		return false;
 	}
+	if (unit->getCloseQuartersTargetList(_battleState->getBattleGame()).empty() && rule->getAccuracyCloseQuarters(getMod()) == 0 && unit->getFaction() == FACTION_PLAYER && !isBerserking)
+	{
+		if (message) *message = "STR_CANT_USE_IN_CQC";
+		return false;
+	}
 	return true;
 }
 
