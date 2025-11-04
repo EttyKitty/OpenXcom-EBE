@@ -47,6 +47,7 @@ class Production;
 class Vehicle;
 class Ufo;
 class AlienMission;
+class Texture;
 
 enum UfoDetection : int;
 enum BasePlacementErrors : int
@@ -132,6 +133,7 @@ private:
 	std::map<const RuleBaseFacility*, int> _destroyedFacilitiesCache;
 	RuleBaseFacilityFunctions _provideBaseFunc = 0;
 	RuleBaseFacilityFunctions _forbiddenBaseFunc = 0;
+	const Texture* _globeTexture = nullptr;
 
 	using Target::load;
 public:
@@ -352,6 +354,11 @@ public:
 	BaseSumDailyRecovery getSumRecoveryPerDay() const;
 	/// Removes a craft from the base.
 	std::vector<Craft*>::iterator removeCraft(Craft *craft, bool unload);
+
+	/// Gets the base's globe texture.
+	const Texture* getGlobeTexture() const { return _globeTexture; }
+	/// Sets the base's globe texture.
+	void setGlobeTexture(const Texture* globeTexture) { _globeTexture = globeTexture; }
 };
 
 }
