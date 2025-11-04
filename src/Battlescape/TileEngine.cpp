@@ -2131,7 +2131,8 @@ bool TileEngine::isTileInLOS(BattleAction *action, Tile *tile, bool drawing)
  * @param exposedVoxels [Optional] Array of positions of exposed voxels (function fills it)
  * @return Degree of exposure (as percent).
  */
-double TileEngine::checkVoxelExposure(Position *originVoxel, Tile *tile, BattleUnit *excludeUnit, bool isDebug, std::vector<Position> *exposedVoxels, bool isSimpleMode)
+double TileEngine::checkVoxelExposure(Position *originVoxel, Tile *tile, BattleUnit *excludeUnit, bool isDebug,
+                                    std::vector<Position> *exposedVoxels, std::vector<Position> *coveredVoxels, bool isSimpleMode)
 {
 	isDebug = isDebug && _save->getDebugMode();
 	if (excludeUnit && excludeUnit->isAIControlled()) isSimpleMode = true;
@@ -2207,6 +2208,7 @@ double TileEngine::checkVoxelExposure(Position *originVoxel, Tile *tile, BattleU
 	// Reduce number of checks in simple mode
 	int simplifyDivider = unitRadius;
 	if (targetSize == 2) simplifyDivider = 4;
+    int peekDistanceSq = _save->getMod()->getAccuracyModConfig()->peekDistance * _save->getMod()->getAccuracyModConfig()->peekDistance;
 
 	for (int height = targetMaxHeight; height >= bottomHeight; height -= 2)
 	{
@@ -2228,7 +2230,14 @@ double TileEngine::checkVoxelExposure(Position *originVoxel, Tile *tile, BattleU
 
 			_trajectory.clear();
 			int test = calculateLineVoxel(*originVoxel, scanVoxel, false, &_trajectory, excludeUnit);
-			if (test == V_UNIT)
+
+            bool peekBehindCover = false;
+            if (!_trajectory.empty())
+            {
+                peekBehindCover = (Position::distanceSq(*originVoxel, _trajectory.at(0)) <= peekDistanceSq);
+            }
+
+            if (test == V_UNIT)
 			{
 				int impactX = _trajectory.at(0).x;
 				int impactY = _trajectory.at(0).y;
@@ -2243,12 +2252,18 @@ double TileEngine::checkVoxelExposure(Position *originVoxel, Tile *tile, BattleU
 					scanLine += '#';
 				}
 				else
-					scanLine += symbols[ test+1 ]; // overlapped by another unit
+                {
+                    if (peekBehindCover) --total;
+                    else if (coveredVoxels) coveredVoxels->emplace_back(_trajectory.at(0));
+                    scanLine += symbols[ test+1 ]; // overlapped by another unit
+                }
 			}
 
 			else
 			{
-				if ( test == V_EMPTY )	--total;
+				if ( test == V_EMPTY || peekBehindCover ) --total;
+                else if (coveredVoxels) coveredVoxels->emplace_back(_trajectory.at(0)); // Target can't be covered by void
+
 				scanLine += symbols[ test+1 ]; // V_EMPTY = -1
 			}
 		}
@@ -2289,6 +2304,13 @@ double TileEngine::checkVoxelExposure(Position *originVoxel, Tile *tile, BattleU
 
 			_trajectory.clear();
 			int test = calculateLineVoxel(*originVoxel, scanVoxel, false, &_trajectory, excludeUnit);
+
+            bool peekBehindCover = false;
+            if (!_trajectory.empty())
+            {
+                peekBehindCover = (Position::distanceSq(*originVoxel, _trajectory.at(0)) <= peekDistanceSq);
+            }
+
 			if (test == V_UNIT)
 			{
 				int impactX = _trajectory.at(0).x;
@@ -2302,7 +2324,17 @@ double TileEngine::checkVoxelExposure(Position *originVoxel, Tile *tile, BattleU
 					exposure += 0.05;
 					if (exposedVoxels) exposedVoxels->emplace_back(scanVoxel);
 				}
+                else
+                {
+                    if (peekBehindCover) --total;
+                    else if (coveredVoxels) coveredVoxels->emplace_back(_trajectory.at(0));
+                }
 			}
+            else if (test != V_EMPTY)
+            {
+                if ( peekBehindCover ) --total;
+                else if (coveredVoxels) coveredVoxels->emplace_back(_trajectory.at(0)); // Target can't be covered by void
+            }
 		}
 	}
 
@@ -2952,6 +2984,7 @@ std::vector<TileEngine::ReactionScore> TileEngine::getSpottingUnits(BattleUnit* 
 							int distanceSq = unit->distance3dToUnitSq(bu);
 							int distance = (int)std::ceil(sqrt(float(distanceSq)));
 
+                            if (!Options::battleRealisticAccuracy)
 							{
 								int upperLimit, lowerLimit;
 								int dropoff = weapon->getRules()->calculateLimits(upperLimit, lowerLimit, _save->getDepth(), rs.attackType);
@@ -2966,11 +2999,85 @@ std::vector<TileEngine::ReactionScore> TileEngine::getSpottingUnits(BattleUnit* 
 								}
 							}
 
-							bool outOfRange = weapon->getRules()->isOutOfRange(distanceSq);
+                            bool outOfRange = weapon->getRules()->isOutOfRange(distanceSq);
+                            int targetSize = unit->getArmor()->getSize();
 
-							if (Options::useChanceToHit)
+							if (Options::battleRealisticAccuracy)
 							{
-								auto targetSize = unit->getArmor()->getSize();
+                                double accuracyFloat = static_cast<double>(accuracy);
+
+								const Mod::AccuracyModConfig *AccuracyMod = _save->getMod()->getAccuracyModConfig();
+								int distanceVoxels = 0;
+								std::vector<Position> exposedVoxels;
+
+                                int maxVoxels = 0;
+                                double maxExposure = 0.0;
+                                auto targetTile = tile;
+                                exposedVoxels.reserve((1 + BattleUnit::BIG_MAX_RADIUS * 2) * TileEngine::voxelTileSize.z / 2);
+
+                                // This is needed inside getOriginVoxel() to get direction
+                                falseAction.target = unit->getPosition();
+
+                                Position selectedOrigin = TileEngine::invalid;
+                                BattleActionOrigin selectedOriginType = BattleActionOrigin::CENTRE;
+                                std::vector<BattleActionOrigin> originTypes;
+                                originTypes.push_back(BattleActionOrigin::CENTRE);
+                                if (Options::oxceEnableOffCentreShooting)
+                                {
+                                    originTypes.push_back(BattleActionOrigin::LEFT);
+                                    originTypes.push_back(BattleActionOrigin::RIGHT);
+                                }
+
+                                // Find shooting point with best target's exposure
+                                for (const auto &relPos : originTypes)
+                                {
+                                    exposedVoxels.clear();
+                                    falseAction.relativeOrigin = relPos;
+                                    Position origin = _save->getTileEngine()->getOriginVoxel(falseAction, bu->getTile());
+                                    double exposure = _save->getTileEngine()->checkVoxelExposure(&origin, targetTile, bu, false, &exposedVoxels, nullptr, false);
+
+                                    // Save default values for center origin
+                                    // Overwrite if better results are found for shifted origins
+                                    if (relPos == BattleActionOrigin::CENTRE || (int)exposedVoxels.size() > maxVoxels)
+                                    {
+                                        selectedOrigin = origin;
+                                        selectedOriginType = relPos;
+                                        maxVoxels = exposedVoxels.size();
+                                        maxExposure = exposure;
+                                    }
+                                }
+                                falseAction.relativeOrigin = selectedOriginType;
+                                distanceVoxels = unit->distance3dToPositionPrecise(selectedOrigin) - bu->getRadiusVoxels();
+								double distanceFloat = (double)distanceVoxels / Position::TileXY;
+
+								int upperLimit, lowerLimit;
+                                int dropoff = weapon->getRules()->calculateLimits(upperLimit, lowerLimit, _save->getDepth(), rs.attackType);
+
+								if (distanceFloat > upperLimit)
+								{
+									accuracyFloat -= (distanceFloat - upperLimit) * dropoff;
+								}
+								else if (distanceFloat < lowerLimit)
+								{
+									accuracyFloat -= (lowerLimit - distanceFloat) * dropoff;
+								}
+
+								bool coverHasEffect = AccuracyMod->coverEfficiency[(int)Options::battleRealisticCoverEfficiency];
+								if (maxVoxels > 0 && coverHasEffect)
+								{
+									// Apply the exposure
+									double coverEfficiencyCoeff = AccuracyMod->coverEfficiency[(int)Options::battleRealisticCoverEfficiency] / 100.0;
+									accuracyFloat = accuracyFloat * coverEfficiencyCoeff * maxExposure + accuracyFloat * (1.0 - coverEfficiencyCoeff);
+								}
+
+								accuracy = round(accuracyFloat);
+								distance = round(distanceFloat);
+								if (distance < 1) distance = 1;
+
+								accuracy = Projectile::getHitChance(distance, accuracy, _save->getMod()->getHitChancesTable(targetSize));
+							}
+                            else if (Options::useChanceToHit)
+							{
 								accuracy = Projectile::getHitChance(distance, accuracy, _save->getMod()->getHitChancesTable( targetSize ));
 							}
 

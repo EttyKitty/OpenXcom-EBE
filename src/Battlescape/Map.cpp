@@ -1395,6 +1395,7 @@ void Map::drawTerrain(Surface *surface)
 							tmpSurface = _game->getMod()->getSurfaceSet("CURSOR.PCK")->getFrame(frameNumber);
 							Surface::blitRaw(surface, tmpSurface, screenPosition.x, screenPosition.y, 0);
 
+							bool disableRA = false;
 							int targetSize = 1;
 							if (unit && unit->getVisible()) targetSize = unit->getArmor()->getSize();
 
@@ -1514,6 +1515,14 @@ void Map::drawTerrain(Surface *surface)
 										const Mod::AccuracyModConfig *AccuracyMod = _game->getMod()->getAccuracyModConfig();
 										int distanceVoxels = 0;
 
+										auto* ammo = attack.damage_item;
+										const RuleItem *ammoRule = (ammo != nullptr) ? ammo->getRules() : nullptr;
+
+										bool isShotgun = ammoRule && ammoRule->getShotgunPellets() != 0 && ammoRule->getDamageType()->isDirect();
+										bool isArcingShot = action->weapon->getArcingShot(action->type);
+										bool isSpray = action->sprayTargeting;
+										disableRA = isShotgun || isArcingShot || isSpray;
+
 										if (unit && unit == shooterUnit)
 										{
 											targetSelf = true;
@@ -1532,13 +1541,7 @@ void Map::drawTerrain(Surface *surface)
 												// This is needed inside getOriginVoxel() to get direction
 												action->target = unit->getPosition();
 
-												// This is TEMPORARY SOLUTION
-												// when selectedOriginType is found - save it to action->relativeOrigin
-												// which is then used by canTargetUnit() in ProjectileFlyBState::init()
-												// Reaction fire in RA is broken due to this!
-
 												Position selectedOrigin = TileEngine::invalid;
-												BattleActionOrigin selectedOriginType = BattleActionOrigin::CENTRE;
 												std::vector<BattleActionOrigin> originTypes;
 												originTypes.push_back(BattleActionOrigin::CENTRE);
 												if (Options::oxceEnableOffCentreShooting)
@@ -1553,19 +1556,18 @@ void Map::drawTerrain(Surface *surface)
 													exposedVoxels.clear();
 													action->relativeOrigin = relPos;
 													Position origin = _save->getTileEngine()->getOriginVoxel(*action, shooterUnit->getTile());
-													double exposure = _save->getTileEngine()->checkVoxelExposure(&origin, targetTile, shooterUnit, false, &exposedVoxels, false);
+													double exposure = _save->getTileEngine()->checkVoxelExposure(&origin, targetTile, shooterUnit, false, &exposedVoxels, nullptr, false);
 
 													// Save default values for center origin
 													// Overwrite if better results are found for shifted origins
 													if (relPos == BattleActionOrigin::CENTRE || (int)exposedVoxels.size() > maxVoxels)
 													{
 														selectedOrigin = origin;
-														selectedOriginType = relPos;
 														maxVoxels = exposedVoxels.size();
 														maxExposure = exposure;
 													}
 												}
-												action->relativeOrigin = selectedOriginType;
+												action->relativeOrigin = BattleActionOrigin::CENTRE; // Reset to default! It's used elsewhere
 												distanceVoxels = unit->distance3dToPositionPrecise(selectedOrigin) - shooterUnit->getRadiusVoxels();
 											}
 											else if (shooterUnit->getTile()) // Targeting an empty tile
@@ -1629,10 +1631,10 @@ void Map::drawTerrain(Surface *surface)
 											}
 
 											int snipingBonus = (round(accuracy) > 100 ? round((accuracy - 100) / 2) : 0);
-											bool isSniperShot = (snipingBonus > 0);
+											bool isSniperShot = (snipingBonus > 0  && !disableRA);
 
 											bool coverHasEffect = AccuracyMod->coverEfficiency[(int)Options::battleRealisticCoverEfficiency];
-											if (unit && maxVoxels > 0 && coverHasEffect)
+											if (unit && maxVoxels > 0 && coverHasEffect && !disableRA)
 											{
 												// Apply the exposure
 												double coverEfficiencyCoeff = AccuracyMod->coverEfficiency[(int)Options::battleRealisticCoverEfficiency] / 100.0;
@@ -1679,7 +1681,8 @@ void Map::drawTerrain(Surface *surface)
 									if (isCtrlPressed && maxVoxels > 0)
 									{
 										int currentColor = TXT_RED;
-										if (maxExposure > 0.65) currentColor = TXT_GREEN;
+										if (disableRA) currentColor = TXT_BROWN;
+										else if (maxExposure > 0.65) currentColor = TXT_GREEN;
 										else if (maxExposure > 0.35) currentColor = TXT_YELLOW;
 										_txtAccuracy->setColor(currentColor);
 										ss << "> " << std::round(maxExposure * 100) << "% <";

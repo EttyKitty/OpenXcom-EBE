@@ -38,6 +38,68 @@ namespace OpenXcom
 {
 
 /**
+ * Helper function for Realistic Accuracy.
+ * Checks positions protection. Removes protected voxels from vector of covered ones.
+ * @param origin Position the projectile originates from.
+ * @param coveredVoxels Positions which should be checked for protection.
+ * @param faction of shooting unit
+ * @param distanceVoxels distance from shooter to target
+ */
+bool Projectile::shotNeedsProtection(const Position &origin, std::vector<Position>& coveredVoxels, OpenXcom::UnitFaction faction, int distanceVoxels)
+{
+	if (faction != FACTION_PLAYER) return false; // TODO: add other factions if needed
+
+	int coveredVoxelsCount = coveredVoxels.size();
+	if (coveredVoxelsCount == 0) return true; // Doesn't matter, just return from here
+
+	bool isCtrlPressed = _save->isCtrlPressed(true); // Don't protect forced shots
+	if (isCtrlPressed) return false;
+
+	auto ammo = _action.weapon->getAmmoForAction(_action.type);
+	bool isSplashDamage = (ammo && !ammo->getRules()->getDamageType()->isDirect());
+
+	int protectionDistance = _mod->getAccuracyModConfig()->suicideProtectionDistance;
+
+	if (distanceVoxels < protectionDistance) return false; // Don't protect against close target
+
+	int protectionDistanceSq = protectionDistance * protectionDistance;
+
+	std::vector<Position> unprotectedVoxels;
+	unprotectedVoxels.reserve(coveredVoxelsCount);
+
+	Tile *targetTile = nullptr;
+	BattleUnit *targetUnit = nullptr;
+
+	for (const Position& voxel : coveredVoxels)
+	{
+		if (Position::distanceSq(origin, voxel) > protectionDistanceSq) // Voxel is far away, remove protection
+		{
+			unprotectedVoxels.emplace_back(voxel);
+		}
+		else
+		{
+			if (isSplashDamage) continue; // Suicide protection
+
+			targetTile = _save->getTile(voxel.toTile());
+			if (!targetTile) goto removeProtection;
+
+			targetUnit = targetTile->getOverlappingUnit(_save);
+			if (!targetUnit) goto removeProtection;
+
+			if (targetUnit->getFaction() == faction) continue; // Friendly fire protection;
+
+			removeProtection: unprotectedVoxels.emplace_back(voxel);
+		}
+	}
+
+	coveredVoxels.swap(unprotectedVoxels);
+	if (coveredVoxels.size() == 0) return true; // No safe voxels found
+
+	return false;
+}
+
+
+/**
  * Helper function for Realistic Accuracy. Calculates trajectory for a miss.
  * @param mod Pointer to mod.
  * @param save Pointer to battle savegame.
@@ -719,6 +781,13 @@ void Projectile::applyAccuracy(Position origin, Position *target, double accurac
 		target->y = (int)(origin.y + maxRange * sin_te * cos_fi);
 		target->z = (int)(origin.z + maxRange * sin_fi);
 	}
+
+	if (Options::battleRealisticAccuracy && Options::battleRealisticDisplayRolls && _action.actor->getFaction() == FACTION_PLAYER)
+	{
+		std::ostringstream ss;
+        ss << " Fallback to vanilla accuracy";
+		_save->getBattleState()->debug(ss.str(), true);
+	}
 }
 
 /**
@@ -734,10 +803,12 @@ void Projectile::applyAccuracyRealistic(Position origin, Position* target, doubl
 	Tile *targetTile = _save->getTile(target->toTile());
 	if (!targetTile) return;
 
+	bool isShotgun = _ammo && _ammo->getRules()->getShotgunPellets() != 0 && _ammo->getRules()->getDamageType()->isDirect();
 	bool isArcingShot = _action.weapon->getArcingShot(_action.type);
+	bool isSpray = _action.sprayTargeting;
 
 	// For any action, incompatible with RA - use classic accuracy insteasd
-	if (_action.type == BA_LAUNCH || _action.type == BA_THROW || isArcingShot)
+	if (_action.type == BA_LAUNCH || _action.type == BA_THROW || isArcingShot || isShotgun || isSpray)
 	{
 		applyAccuracy( origin, target, accuracy, keepRange, extendLine );
 		return;
@@ -755,8 +826,9 @@ void Projectile::applyAccuracyRealistic(Position origin, Position* target, doubl
 
 	BattleUnit *shooterUnit = _action.actor;
 
-	std::vector<Position> exposedVoxels;
-	int exposedVoxelsCount = 0; // Maximum of exposed voxels for left, center or right shooting position
+	std::vector<Position> exposedVoxels, coveredVoxels;
+	size_t exposedVoxelsCount = 0; // Maximum of exposed voxels for left, center or right shooting position
+	size_t coveredVoxelsCount = 0;
 
 	BattleUnit *targetUnit = nullptr;
 	targetUnit = targetTile->getOverlappingUnit(_save);
@@ -779,43 +851,14 @@ void Projectile::applyAccuracyRealistic(Position origin, Position* target, doubl
 
 		int heightCount = 1 + targetUnit->getHeight()/2; // additional level for unit's bottom
 		int widthCount = 1 + ( targetSize > 1 ? BattleUnit::BIG_MAX_RADIUS*2 : BattleUnit::SMALL_MAX_RADIUS*2 );
-
-		std::vector<Position> tempVoxels;
-		tempVoxels.reserve( heightCount * widthCount );
 		exposedVoxels.reserve( heightCount * widthCount );
+		coveredVoxels.reserve( heightCount * widthCount );
 
-		Position selectedOrigin = TileEngine::invalid;
-		BattleActionOrigin selectedOriginType = BattleActionOrigin::CENTRE;
-		std::vector<BattleActionOrigin> originTypes;
+		exposure = _save->getTileEngine()->checkVoxelExposure( &origin, targetTile, shooterUnit, true, &exposedVoxels, &coveredVoxels, false);
 
-		originTypes.push_back( BattleActionOrigin::CENTRE );
-
-		if (Options::oxceEnableOffCentreShooting)
-		{
-			originTypes.push_back( BattleActionOrigin::LEFT );
-			originTypes.push_back( BattleActionOrigin::RIGHT );
-		}
-
-		for (const auto &relPos : originTypes)
-		{
-			tempVoxels.clear();
-			_action.relativeOrigin = relPos;
-			Position tempOrigin = _save->getTileEngine()->getOriginVoxel(_action, shooterUnit->getTile());
-			if (selectedOrigin == TileEngine::invalid) selectedOrigin = tempOrigin;
-
-			double tempExposure = _save->getTileEngine()->checkVoxelExposure( &tempOrigin, targetTile, shooterUnit, true, &tempVoxels, false);
-
-			if ((int)tempVoxels.size() > exposedVoxelsCount)
-			{
-				exposedVoxelsCount = tempVoxels.size();
-				exposure = tempExposure;
-				selectedOriginType = relPos;
-				selectedOrigin = tempOrigin;
-				exposedVoxels.swap( tempVoxels );
-			}
-		}
-		_action.relativeOrigin = selectedOriginType;
-		distanceVoxels = targetUnit->distance3dToPositionPrecise( selectedOrigin ) - shooterUnit->getRadiusVoxels();
+		exposedVoxelsCount = exposedVoxels.size();
+		coveredVoxelsCount = coveredVoxels.size();
+		distanceVoxels = targetUnit->distance3dToPositionPrecise( origin ) - shooterUnit->getRadiusVoxels();
 	}
 	else // Get distance to target empty tile
 	{
@@ -869,57 +912,33 @@ void Projectile::applyAccuracyRealistic(Position origin, Position* target, doubl
 	int snipingBonus = ( accuracy > 1.0 ? round((accuracy*100 - 100)/2) : 0 );
 	bool isSniperShot = ( snipingBonus > 0 );
 
+	isTargetObject = targetTile->getMapData(O_OBJECT); // Check if there are any objects
+
     // Now convert values to integers
-	int accuracyInteger = 0;
+	int accuracyInteger = round(100 * accuracy);
 	int distanceInteger = round(distance);
 	if (distanceInteger < 1) distanceInteger = 1;
 
-	isTargetObject = targetTile->getMapData(O_OBJECT); // Check if there are any objects
+	int rawChanceToHit = Projectile::getHitChance(distanceInteger, accuracyInteger, _save->getMod()->getHitChancesTable( targetSize ));
+	int coveredChanceToHit = rawChanceToHit;
 
     // Apply exposure
 	if (exposedVoxelsCount > 0 && coverHasEffect)
 	{
 		accuracyInteger = round(100 * (accuracy * coverEfficiencyCoeff * exposure + accuracy * (1 - coverEfficiencyCoeff)));
+		coveredChanceToHit = Projectile::getHitChance(distanceInteger, accuracyInteger, _save->getMod()->getHitChancesTable( targetSize ));
 	}
-	else
-	{
-		accuracyInteger = round(100 * accuracy);
-	}
-
-	// Apply hitchance
-	accuracyInteger = Projectile::getHitChance(distanceInteger, accuracyInteger, _save->getMod()->getHitChancesTable( targetSize ));
 
 	if (Options::battleRealisticImprovedAimed && isSniperShot)
 	{
-		accuracyInteger += snipingBonus;
+		rawChanceToHit += snipingBonus;
+		coveredChanceToHit += snipingBonus;
 	}
 
 	int accuracyCheck = RNG::generate(1, 100);
-	bool hitSuccessful = ( accuracyCheck <= accuracyInteger );
-
-	if (Options::battleRealisticDisplayRolls && shooterUnit->getFaction() == FACTION_PLAYER)
-	{
-		std::ostringstream ss;
-
-		if (targetUnit && targetUnit->getVisible())
-		{
-			ss << "Exposure " << std::round(exposure*100) << "%";
-
-			if (Options::battleRealisticImprovedAimed && isSniperShot)
-			{
-				ss << " Sniping +" << snipingBonus << "%";
-			}
-			ss << " Total " << accuracyInteger << "%";
-		}
-		else
-		{
-			if (Options::battleRealisticImprovedAimed && isSniperShot) ss << "Sniping +" << snipingBonus << "%";
-			ss << " Total " << accuracyInteger << "%";
-		}
-
-		ss << " Roll " << accuracyCheck << ( hitSuccessful ? " -> HIT" : " -> MISS" );
-		_save->getBattleState()->debug(ss.str(), true);
-	}
+	bool hitSuccessful = ( accuracyCheck <= coveredChanceToHit );
+	bool hitToCover = ( !hitSuccessful && accuracyCheck <= rawChanceToHit );
+	bool hitNoSuicide = false;
 
 	// Calculate final target point
 	if (hitSuccessful && !exposedVoxels.empty()) // "Hitting" visible unit
@@ -944,9 +963,60 @@ void Projectile::applyAccuracyRealistic(Position origin, Position* target, doubl
 		target->x += RNG::generate(-3, 3); // Add some deviation in XY plane - Z deviation leads to obvious misses
 		target->y += RNG::generate(-3, 3);
 	}
+
+	else if (hitToCover && !coveredVoxels.empty()) // "Hitting" cover
+	{
+		bool protect = shotNeedsProtection(origin, coveredVoxels, shooterUnit->getFaction(), distanceVoxels);
+		coveredVoxelsCount = coveredVoxels.size();
+
+		if (protect)
+		{
+			*target = calculateMissingTrajectoryRA( origin, target, shooterUnit, targetUnit, distanceVoxels, exposedVoxels );
+			hitToCover = false;
+			hitNoSuicide = true;
+		}
+		else
+		{
+			int rng = RNG::generate( 0, coveredVoxelsCount-1 );
+			*target = coveredVoxels.at(rng); // Aim to random covered voxel
+		}
+	}
+
 	else // We missed, time to find a line of fire to perform a miss with a realistic deviation
 	{
 		*target = calculateMissingTrajectoryRA( origin, target, shooterUnit, targetUnit, distanceVoxels, exposedVoxels );
+	}
+
+	bool showRngRollsPlayer = Options::battleRealisticDisplayRolls && shooterUnit->getFaction() == FACTION_PLAYER;
+	bool showRngRollsOthers = Options::battleRealisticDisplayOthersRolls && shooterUnit->getFaction() != FACTION_PLAYER;
+
+	if (showRngRollsPlayer || showRngRollsOthers)
+	{
+		std::ostringstream ss;
+
+		if (targetUnit && targetUnit->getVisible())
+		{
+			ss << "Vis: " << std::round(exposure*100) << "%";
+			ss << " Total: " << coveredChanceToHit << "/" << rawChanceToHit << "%";
+
+			if (Options::battleRealisticImprovedAimed && isSniperShot)
+			{
+				ss << " Sniper: " << snipingBonus << "%";
+			}
+		}
+		else
+		{
+			ss << "Total: " << rawChanceToHit;
+			if (Options::battleRealisticImprovedAimed && isSniperShot) ss << " Sniper: " << snipingBonus << "%";
+		}
+
+		ss << " Roll " << accuracyCheck;
+		if (hitSuccessful) ss << " -> HIT";
+		else if (hitToCover) ss << " -> COVER";
+		else if (hitNoSuicide) ss << " -> PROTECT";
+		else ss << " -> MISS";
+
+		_save->getBattleState()->debug(ss.str(), true);
 	}
 
 	if (extendLine)
