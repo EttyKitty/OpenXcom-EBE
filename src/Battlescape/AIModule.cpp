@@ -3511,7 +3511,6 @@ void AIModule::brutalThink(BattleAction* action)
 				_unit->spendTimeUnits(action->weapon->getMoveToCost(_save->getMod()->getInventoryLeftHand()));
 			}
 			action->updateTU();
-			_allowedToCheckAttack = false;
 			if (_traceAI)
 			{
 				if (action->type != BA_WALK)
@@ -3734,7 +3733,7 @@ void AIModule::brutalThink(BattleAction* action)
 	if (saveDistance)
 		improveItemization(myWeaponScore, action);
 	if (_traceAI)
-		Log(LOG_INFO) << "iHaveLof : " << iHaveLof << " sweep - mode : " << sweepMode << " could be found : " << amInLoSToFurthestReachable << " energy - recovery : " << getEnergyRecovery(_unit) << " wantToPrime: " << wantToPrime << " saveDistance: " << saveDistance << " contact: " << contact;
+		Log(LOG_INFO) << "iHaveLof : " << iHaveLof << " sweep - mode : " << sweepMode << " could be found : " << amInLoSToFurthestReachable << " energy - recovery : " << getEnergyRecovery(_unit) << " wantToPrime: " << wantToPrime << " saveDistance: " << saveDistance << " contact: " << contact << " damagePotentialFromCurrentPosition: " << damagePotentialFromCurrentPosition;
 	bool winnerWasSpecialDoorCase = false;
 	bool shouldHaveLofAfterMove = false;
 	bool shouldEndTurnAfterMove = false;
@@ -4330,11 +4329,11 @@ void AIModule::brutalThink(BattleAction* action)
 				bestFallbackScore = fallbackScore;
 				bestFallbackPosition = pos;
 			}
-			//if (_traceAI && discoverThreat > 0)
+			//if (_traceAI)
 			//{
 			//	tile->setMarkerColor(_unit->getId()%100);
 			//	tile->setPreview(10);
-			//	tile->setTUMarker(discoverThreat);
+			//	tile->setTUMarker(highestDamage);
 			//}
 		}
 		if (_traceAI)
