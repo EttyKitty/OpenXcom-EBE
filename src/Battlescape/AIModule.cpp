@@ -3187,8 +3187,12 @@ void AIModule::brutalThink(BattleAction* action)
 	Position myPos = _unit->getPosition();
 	Tile* myTile = _save->getTile(myPos);
 
-	// Units standing in doorways move first so they can make room for others
-	if (!_save->getTileEngine()->isNextToDoor(myTile))
+	// Detect if I am blocking a door
+	bool iAmBlockingDoor = _save->getTileEngine()->isNextToDoor(myTile);
+
+	// Only calculate distances if I'm not in a doorway.
+	// If I am in a doorway, priority is strictly based on position, not distance/reachability.
+	if (!iAmBlockingDoor)
 	{
 		for (BattleUnit* enemy : *(_save->getUnits()))
 		{
@@ -3220,6 +3224,33 @@ void AIModule::brutalThink(BattleAction* action)
 			continue;
 		if (!ally->isAIControlled())
 			continue;
+
+		// --- FIX START: Doorway Priority Logic ---
+		bool allyBlockingDoor = _save->getTileEngine()->isNextToDoor(ally->getTile());
+
+		if (iAmBlockingDoor)
+		{
+			// If I am in a doorway, I have absolute priority to clear the choke point.
+			// I will NOT wait for any ally, regardless of their reachability or distance.
+			// We skip checking this ally and proceed to our move.
+			continue;
+		}
+
+		if (allyBlockingDoor)
+		{
+			// If I am NOT in a doorway, but an ally IS, they must move first.
+			// We pass the turn immediately without calculating reachability.
+			action->type = BA_WAIT;
+			action->number -= 1;
+			_save->getBattleGame()->setNextUnitToSelect(ally);
+			if (Options::traceAI)
+			{
+				Log(LOG_INFO) << "#" << _unit->getId() << " waits for " << ally->getId() << " because ally is in a doorway.";
+			}
+			return;
+		}
+		// --- FIX END ---
+
 		int allyReachable = 0;
 		bool allyRanOutOfTUs = false;
 		float allyDist = 0;
@@ -3227,26 +3258,24 @@ void AIModule::brutalThink(BattleAction* action)
 		if (ally->getFaction() != ally->getOriginalFaction())
 			allyIsMindControlled = true;
 
-		// Units standing in doorways move first so they can make room for others
-		if (!_save->getTileEngine()->isNextToDoor(ally->getTile()))
+		// We no longer need the door check inside this calculation block
+		for (BattleUnit* enemy : *(_save->getUnits()))
 		{
-			for (BattleUnit* enemy : *(_save->getUnits()))
+			if (enemy->getMainHandWeapon() == NULL || enemy->isOut() || enemy->getFaction() == _unit->getFaction())
+				continue;
+			Position enemyPos = enemy->getPosition();
+			if (!_unit->isCheatOnMovement())
 			{
-				if (enemy->getMainHandWeapon() == NULL || enemy->isOut() || enemy->getFaction() == _unit->getFaction())
-					continue;
-				Position enemyPos = enemy->getPosition();
-				if (!_unit->isCheatOnMovement())
-				{
-					enemyPos = _save->getTileCoords(enemy->getTileLastSpotted(ally->getFaction()));
-				}
-				if (ally->hasVisibleUnit(enemy))
-				{
-					allyDist = 0;
-					break;
-				}
-				allyDist += Position::distance(ally->getPosition(), enemyPos);
+				enemyPos = _save->getTileCoords(enemy->getTileLastSpotted(ally->getFaction()));
 			}
+			if (ally->hasVisibleUnit(enemy))
+			{
+				allyDist = 0;
+				break;
+			}
+			allyDist += Position::distance(ally->getPosition(), enemyPos);
 		}
+
 		allyReachable = getReachableBy(ally, allyRanOutOfTUs).size();
 		if (_ranOutOfTUs == false)
 		{
@@ -3255,10 +3284,10 @@ void AIModule::brutalThink(BattleAction* action)
 				action->type = BA_WAIT;
 				action->number -= 1;
 				_save->getBattleGame()->setNextUnitToSelect(ally);
-				//if (Options::traceAI)
+				// if (Options::traceAI)
 				//{
 				//	Log(LOG_INFO) << "#" << _unit->getId() << " with myReachable: " << myReachable << " and " << myDist << " wants " << ally->getId() << " with allyReachable: " << allyReachable << " and " << allyDist << " to move next.";
-				//}
+				// }
 				return;
 			}
 		}
@@ -3269,10 +3298,10 @@ void AIModule::brutalThink(BattleAction* action)
 				action->type = BA_WAIT;
 				action->number -= 1;
 				_save->getBattleGame()->setNextUnitToSelect(ally);
-				//if (Options::traceAI)
+				// if (Options::traceAI)
 				//{
 				//	Log(LOG_INFO) << "#" << _unit->getId() << " with myReachable: " << myReachable << " and " << myDist << " wants " << ally->getId() << " with allyReachable: " << allyReachable << " and " << allyDist << " to move next.";
-				//}
+				// }
 				return;
 			}
 		}
@@ -3321,6 +3350,7 @@ void AIModule::brutalThink(BattleAction* action)
 	float targetDistanceTofurthestReach = FLT_MAX;
 	std::map<Position, int, PositionComparator> enemyReachable;
 	std::map<Position, int, PositionComparator> friendReachable;
+	std::map<Position, int, PositionComparator> bestFriendReachable;
 	bool immobileEnemies = false;
 
 	float panicked = 0;
@@ -3340,6 +3370,7 @@ void AIModule::brutalThink(BattleAction* action)
 				for (auto& reachablePosOfTarget : getReachableBy(target, _ranOutOfTUs, false, true))
 				{
 					friendReachable[reachablePosOfTarget.first] += reachablePosOfTarget.second;
+					bestFriendReachable[reachablePosOfTarget.first] = std::max(bestFriendReachable[reachablePosOfTarget.first], reachablePosOfTarget.second);
 				}
 				_save->getPathfinding()->setIgnoreFriends(false);
 			}
@@ -3754,10 +3785,6 @@ void AIModule::brutalThink(BattleAction* action)
 		Position attackDirection = targetPosition;
 		BattleActionCost reserved = BattleActionCost(_unit);
 		Position travelTarget = furthestToGoTowards(targetPosition, reserved, _allPathFindingNodes);
-		if (friendReachable[myPos] > 0)
-			tuToSaveForHide = 0.75;
-		if (friendReachable[myPos] > myMaxTU)
-			tuToSaveForHide = 1.0;
 		std::vector<PathfindingNode*> targetNodes = _save->getPathfinding()->findReachablePathFindingNodes(_unit, BattleActionCost(), dummy, true, NULL, &travelTarget, false, false, bam);
 		if (_traceAI)
 		{
@@ -3791,8 +3818,6 @@ void AIModule::brutalThink(BattleAction* action)
 			if (pu->getTUCost(false).time > _unit->getTimeUnits() || pu->getTUCost(false).energy > _unit->getEnergy())
 				continue;
 			MoveEvaluation me{};
-			me.multiplicativeMod = 1;
-			me.divisiveMod = 1;
 			bool saveForProxies = true;
 			bool inDoors = false;
 			Tile* tileAbove = _save->getAboveTile(tile);
@@ -4138,7 +4163,6 @@ void AIModule::brutalThink(BattleAction* action)
 					}
 				}
 				discoverThreat = std::max(0.0f, discoverThreat);
-				me.discoverThreat = discoverThreat;
 				if (discoverThreat == 0)
 				{
 					if (!_save->getTileEngine()->isNextToDoor(tile) || contact)
@@ -4176,7 +4200,6 @@ void AIModule::brutalThink(BattleAction* action)
 					}
 					if (highestPickupScore > 0)
 					{
-						me.additiveMod = highestPickupScore - myWeaponScore;
 						if (greatCoverScore > 0)
 							greatCoverScore += highestPickupScore - myWeaponScore;
 						if (goodCoverScore > 0)
@@ -4197,9 +4220,6 @@ void AIModule::brutalThink(BattleAction* action)
 			goodCoverScore /= cuddleAvoidModifier;
 			okayCoverScore /= cuddleAvoidModifier;
 			fallbackScore /= cuddleAvoidModifier;
-			me.divisiveMod *= cuddleAvoidModifier;
-			if (_save->getTileEngine()->isNextToDoor(tile) && !contact)
-				me.divisiveMod *= 10;
 			if (tile->getDangerous() || (tile->getFire() && _unit->avoidsFire()))
 			{
 				if (IAmMindControlled && !(tile->getFloorSpecialTileType() == START_POINT && _unit->getOriginalFaction() == FACTION_PLAYER))
@@ -4208,7 +4228,6 @@ void AIModule::brutalThink(BattleAction* action)
 					goodCoverScore *= 10;
 					okayCoverScore *= 10;
 					fallbackScore *= 10;
-					me.multiplicativeMod *= 10;
 				}
 				else
 				{
@@ -4219,7 +4238,6 @@ void AIModule::brutalThink(BattleAction* action)
 						goodCoverScore /= 10;
 						okayCoverScore /= 10;
 						fallbackScore /= 10;
-						me.divisiveMod *= 10;
 					}
 					else
 					{
@@ -4227,7 +4245,6 @@ void AIModule::brutalThink(BattleAction* action)
 						goodCoverScore = 0;
 						okayCoverScore = 0;
 						fallbackScore = 0;
-						me.multiplicativeMod = 0;
 					}
 				}
 			}
@@ -4244,7 +4261,6 @@ void AIModule::brutalThink(BattleAction* action)
 			greatCoverScore /= avoidDivider;
 			goodCoverScore /= avoidDivider;
 			okayCoverScore /= avoidDivider;
-			me.divisiveMod *= avoidDivider;
 
 			float bonus = 100;
 			if (inDoors)
@@ -4257,7 +4273,6 @@ void AIModule::brutalThink(BattleAction* action)
 			greatCoverScore *= bonus;
 			goodCoverScore *= bonus;
 			okayCoverScore *= bonus;
-			me.multiplicativeMod *= bonus;
 			// Avoid tiles from which the player can take me with them when retreating
 			if (IAmMindControlled && tile->getFloorSpecialTileType() == START_POINT && _unit->getOriginalFaction() == FACTION_PLAYER)
 			{
@@ -4265,7 +4280,6 @@ void AIModule::brutalThink(BattleAction* action)
 				goodCoverScore /= 10;
 				okayCoverScore /= 10;
 				fallbackScore /= 10;
-				me.divisiveMod *= 10;
 			}
 			if (!tile->getInventory()->empty() && _unit->getFaction() == _unit->getOriginalFaction())
 			{
@@ -4276,7 +4290,6 @@ void AIModule::brutalThink(BattleAction* action)
 						greatCoverScore /= 2;
 						goodCoverScore /= 2;
 						okayCoverScore /= 2;
-						me.divisiveMod *= 2;
 					}
 				}
 			}
@@ -4285,7 +4298,6 @@ void AIModule::brutalThink(BattleAction* action)
 				attackScore /= 2;
 				directPeakScore /= 10;
 				indirectPeakScore /= 10;
-				me.divisiveMod *= 10;
 			}
 			moveMap[_save->getTileIndex(pos)] = me;
 			if (attackScore > bestAttackScore)
@@ -4404,54 +4416,30 @@ void AIModule::brutalThink(BattleAction* action)
 		Log(LOG_INFO) << "New visible tiles from " << bestDirectPeakPosition << ": " << newVisibleTilesDirect;
 		Log(LOG_INFO) << "New visible tiles from " << bestIndirectPeakPosition << ": " << newVisibleTilesInDirect;
 	}
-	float bestDistSafetyScore = -1.0f;
-	Position distSafetyCompromise = _unit->getPosition();
 	float bestPeekPreserveScore = -1.0f;
 	Position peekPreserveCompromise = _unit->getPosition();
 	if (!contact && bestAttackScore <= 0)
 	{
-		float maxThreat = 0;
-		float minThreat = FLT_MAX;
-		float avgThreat = 0;
 		int maxScout = 0;
 		int minScout = INT_MAX;
 		float avgScout = 0;
-		float maxDist = 0;
-		float minDist = FLT_MAX;
-		float avgDist = 0;
 		int maxRemainingTU = 0;
 		int minRemainingTU = getMaxTU(_unit);
 		float avgRemainingTU = 0;
 		for (auto& move : moveMap)
 		{
-			maxThreat = std::max(maxThreat, move.second.discoverThreat);
-			minThreat = std::min(minThreat, move.second.discoverThreat);
-			avgThreat += move.second.discoverThreat;
 			maxScout = std::max(maxScout, move.second.visibleTiles);
 			minScout = std::min(minScout, move.second.visibleTiles);
 			avgScout += move.second.visibleTiles;
-			maxDist = std::max(maxDist, move.second.walkToDist);
-			minDist = std::min(minDist, move.second.walkToDist);
-			avgDist += move.second.walkToDist;
 			maxRemainingTU = std::max(maxRemainingTU, move.second.remainingTU);
 			minRemainingTU = std::min(minRemainingTU, move.second.remainingTU);
 			avgRemainingTU += move.second.remainingTU;
 		}
-		avgThreat /= moveMap.size();
 		avgScout /= moveMap.size();
-		avgDist /= moveMap.size();
 		avgRemainingTU /= moveMap.size();
 
 		for (auto& move : moveMap)
 		{
-			float distNorm = 1.0f;
-			if (maxDist != minDist)
-				distNorm = 1.0f - (move.second.walkToDist - minDist) / (maxDist - minDist);
-
-			float threatNorm = 1.0f;
-			if (maxThreat != minThreat)
-				threatNorm = 1.0f - (move.second.discoverThreat - minThreat) / (maxThreat - minThreat);
-
 			float scoutNorm = 1.0f;
 			if (maxScout != minScout)
 				scoutNorm = (move.second.visibleTiles - minScout) / float(maxScout - minScout);
@@ -4460,12 +4448,7 @@ void AIModule::brutalThink(BattleAction* action)
 			if (maxRemainingTU != minRemainingTU)
 				tuNorm = (move.second.remainingTU - minRemainingTU) / float(maxRemainingTU - minRemainingTU);
 
-			float distSafetyScore = distNorm * threatNorm;
 			float peekPreserveScore = scoutNorm * tuNorm;
-			distSafetyScore += move.second.additiveMod;
-			distSafetyScore *= move.second.multiplicativeMod;
-			distSafetyScore /= move.second.divisiveMod;
-
 			//if (_traceAI && move.second.visibleTiles > 0)
 			//{
 			//	Tile* tile = _save->getTile(_save->getTileCoords(move.first));
@@ -4473,13 +4456,6 @@ void AIModule::brutalThink(BattleAction* action)
 			//	tile->setPreview(10);
 			//	tile->setTUMarker(move.second.visibleTiles);
 			//}
-
-			if (distSafetyScore > bestDistSafetyScore)
-			{
-				bestDistSafetyScore = distSafetyScore;
-				distSafetyCompromise = _save->getTileCoords(move.first);
-			}
-
 			if (peekPreserveScore > bestPeekPreserveScore && move.second.visibleTiles > 0)
 			{
 				bestPeekPreserveScore = peekPreserveScore;
@@ -4502,17 +4478,11 @@ void AIModule::brutalThink(BattleAction* action)
 		travelTarget = bestFallbackPosition;
 		shouldEndTurnAfterMove = true;
 	}
-	else if (bestPeekPreserveScore > 0)
+	else if (bestPeekPreserveScore > 0 && bestFriendReachable[peekPreserveCompromise] <= getReachableBy(_unit, _ranOutOfTUs, false, true)[peekPreserveCompromise])
 	{
 		Log(LOG_INFO) << "peekPreserveCompromise: " << peekPreserveCompromise << " score: " << bestPeekPreserveScore;
 		travelTarget = peekPreserveCompromise;
 		indirectPeek = true;
-	}
-	else if (bestDistSafetyScore > 0 && _myFaction != FACTION_PLAYER)
-	{
-		Log(LOG_INFO) << "distSafetyCompromise: " << distSafetyCompromise << " score: " << bestDistSafetyScore;
-		travelTarget = distSafetyCompromise;
-		shouldEndTurnAfterMove = true;
 	}
 	else if (bestGreatCoverScore > 0)
 	{
@@ -4642,7 +4612,7 @@ void AIModule::brutalThink(BattleAction* action)
 		{
 			Log(LOG_INFO) << "Should face towards " << targetPosition << " which is " << action->finalFacing << " should have Lof after move: " << shouldHaveLofAfterMove << " winnerWasSpecialDoorCase: " << winnerWasSpecialDoorCase;
 		}
-		if (winnerWasSpecialDoorCase)
+		if (winnerWasSpecialDoorCase && travelTarget == myPos)
 		{
 			if (action->finalFacing == _unit->getDirection())
 				action->type = BA_NONE;
@@ -7212,11 +7182,18 @@ float AIModule::damagePotential(Position pos, BattleUnit* target, int tuTotal, i
 			if (!tuCost)
 				continue;
 
-			float attacks = static_cast<float>(tuTotal) / tuCost;
+			int possibleActions = tuTotal / tuCost;
+
 			if (energyCost > 0)
-				attacks = std::min(attacks, static_cast<float>(energyTotal) / energyCost);
-			numberOfShots *= attacks;
-			if (numberOfShots < 1)
+				possibleActions = std::min(possibleActions, energyTotal / energyCost);
+
+			if (bat == BA_THROW)
+			{
+				possibleActions = std::min(possibleActions, 1);
+			}
+
+			// If we don't have enough TU/Energy for even a single action, skip.
+			if (possibleActions < 1)
 				continue;
 
 			auto ammo = weapon->getAmmoForAction(bat);
@@ -7268,12 +7245,56 @@ float AIModule::damagePotential(Position pos, BattleUnit* target, int tuTotal, i
 				accuracy = std::min(1.0f, accuracy);
 			}
 			// Calculate final damage for *this action* using its own (modified) power
-			float finalActionDamage = (damageForCalc * damageRangeFactor - relevantArmor) / 2.0f;
-			finalActionDamage *= accuracy * numberOfShots * explosionMod;
-			finalActionDamage = std::max(0.0f, finalActionDamage); // Damage cannot be negative
+			float damagePerExecution = (damageForCalc * damageRangeFactor - relevantArmor) / 2.0f;
+			damagePerExecution *= accuracy * numberOfShots * explosionMod;
+			damagePerExecution = std::max(0.0f, damagePerExecution);
 
-			// Update the maximum damage found for THIS weapon
-			maxFinalDamageForThisWeapon = std::max(maxFinalDamageForThisWeapon, finalActionDamage);
+			// --- FIX 2: Kill Efficiency Calculation ---
+
+			float hp = target->getHealth();
+
+			// Step A: Calculate how many actions it takes to actually kill this specific target
+			// We use a small epsilon or ceil to ensure we don't under-estimate.
+			int actionsNeededToKill = 999;
+			if (damagePerExecution > 0)
+			{
+				actionsNeededToKill = (int)std::ceil(hp / damagePerExecution);
+			}
+
+			// Step B: Determine what happens to the CURRENT target
+			int actionsUsedOnTarget = std::min(possibleActions, actionsNeededToKill);
+
+			float damageToTarget = damagePerExecution * actionsUsedOnTarget;
+
+			// Soft Cap: Value damage up to HP highly, overkill loosely.
+			if (damageToTarget > hp)
+			{
+				float overkill = damageToTarget - hp;
+				damageToTarget = hp + (overkill * 0.1f);
+			}
+
+			// Step C: Calculate Remaining Potential (The "Free TUs" Bonus)
+			// If we killed the target and have actions left, those are valuable!
+			float remainingPotential = 0;
+
+			if (possibleActions > actionsUsedOnTarget)
+			{
+				int actionsRemaining = possibleActions - actionsUsedOnTarget;
+
+				// If this is a grenade, we usually don't have infinite grenades to throw,
+				// so remaining potential for this specific weapon is 0.
+				if (bat != BA_THROW)
+				{
+					// We assume the remaining actions could be used on OTHER targets
+					// with similar armor/resistance (heuristic).
+					remainingPotential = actionsRemaining * damagePerExecution;
+				}
+			}
+
+			// Final Score = The Value of the Kill + The Value of the leftover TUs
+			float finalScore = damageToTarget + remainingPotential;
+
+			maxFinalDamageForThisWeapon = std::max(maxFinalDamageForThisWeapon, finalScore);
 		}
 		// After checking all actions for this weapon, update the overall maximum damage
 		overallMaxDamage = std::max(overallMaxDamage, maxFinalDamageForThisWeapon);
