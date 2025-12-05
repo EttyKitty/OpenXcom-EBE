@@ -52,6 +52,7 @@ private:
 	getStatFn_t _dynGetter;
 	size_t selectedCraftIndex;	
 	std::vector<std::string> _availableOptions, _craftOptions;
+	size_t _mainOffset;
 	///initializes the display list based on the craft soldier's list and the position to display
 	void initList(size_t scrl);
 public:
@@ -73,6 +74,13 @@ public:
 	void moveSoldierDown(Action *action, unsigned int row, bool max = false);
 	/// Handler for clicking the OK button.
 	void btnOkClick(Action *action);
+	/// Handler for clicking the Psi Training button.
+	void btnPsiTrainingClick(Action *action);
+	void btnTrainingClick(Action *action);
+	/// Handler for clicking the Memorial button.
+	void btnMemorialClick(Action *action);
+	/// Handler for clicking the Transformations Overview button/hotkey.
+	void btnTransformationsOverviewClick(Action *action);
 	/// Handler for changing the screen actions combo box.
 	void cbxScreenActionsChange(Action *action);
 	/// Handler for filtering by craft selected in combobox.

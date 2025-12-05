@@ -2111,6 +2111,7 @@ void StatsForNerdsState::initItemList()
 		addFloatAsPercentage(ss, rule->ToTile, "ToTile", ruleByResistType->ToTile);
 		addBoolean(ss, rule->RandomTile, "RandomTile", ruleByResistType->RandomTile);
 		addInteger(ss, rule->TileDamageMethod, "TileDamageMethod", ruleByResistType->TileDamageMethod);
+		addInteger(ss, rule->TileDamageLimit, "TileDamageLimit", ruleByResistType->TileDamageLimit);
 
 		endHeading();
 	}
@@ -2190,6 +2191,7 @@ void StatsForNerdsState::initItemList()
 	}
 
 	addInteger(ss, itemRule->getClipSize(), "clipSize", 0, false, "STR_CLIP_SIZE_UNLIMITED", -1);
+	addBoolean(ss, itemRule->isAmmoRechargeable(), "isAmmoRechargeable");
 
 	// compatibleAmmo*
 	// tuLoad*
@@ -2230,6 +2232,9 @@ void StatsForNerdsState::initItemList()
 	addInteger(ss, itemRule->getArmor(), "armor", 20);
 
 	addBattleMediKitType(ss, itemRule->getMediKitType(), "medikitType");
+	addSingleString(ss, itemRule->getPainKillerActionName(), "painKillerActionName", "STR_PAIN_KILLER");
+	addSingleString(ss, itemRule->getStimulantActionName(), "stimulantActionName", "STR_STIMULANT");
+	addSingleString(ss, itemRule->getHealActionName(), "healActionName", "STR_HEAL");
 	addSingleString(ss, itemRule->getMedikitActionName(), "medikitActionName", "STR_USE_MEDI_KIT");
 	addBoolean(ss, itemRule->getAllowTargetSelf(), "medikitTargetSelf");
 	addBoolean(ss, itemRule->getAllowTargetImmune(), "medikitTargetImmune");

@@ -55,7 +55,7 @@ namespace OpenXcom
  * @param game Pointer to the core game.
  * @param base Pointer to the base to get info from.
  */
-SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base->getSoldiers()), _dynGetter(NULL), selectedCraftIndex(0)
+SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base->getSoldiers()), _dynGetter(NULL), selectedCraftIndex(0), _mainOffset(0)
 {
 	bool isPsiBtnVisible = Options::anytimePsiTraining && _base->getAvailablePsiLabs() > 0;
 	bool isTrnBtnVisible = _base->getAvailableTraining() > 0;
@@ -101,6 +101,7 @@ SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base
 	_btnOk->onKeyboardPress((ActionHandler)&SoldiersState::btnOkClick, Options::keyCancel);
 	_btnOk->onKeyboardPress((ActionHandler)&SoldiersState::btnInventoryClick, Options::keyBattleInventory);
 	_btnOk->onKeyboardPress((ActionHandler)&SoldiersState::btnAIClick, Options::keyAIList);
+	_btnOk->onKeyboardPress((ActionHandler)&SoldiersState::btnTransformationsOverviewClick, SDLK_t);
 
     // _cbxScreenActions
 
@@ -115,7 +116,28 @@ SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base
 	if (isTransformationAvailable)
 		_availableOptions.push_back("STR_TRANSFORMATIONS_OVERVIEW");
 
+	_btnMemorial->setVisible(false);
+	_btnPsiTraining->setVisible(false);
+	_btnTraining->setVisible(false);
+
+	_availableOptions.push_back("STR_SOLDIER_INFO");
+	_availableOptions.push_back("STR_MEMORIAL");
+	_availableOptions.push_back("STR_INVENTORY");
+
+	if (isPsiBtnVisible)
+		_availableOptions.push_back("STR_PSI_TRAINING");
+
+	if (isTrnBtnVisible)
+		_availableOptions.push_back("STR_TRAINING");
+
+	if (isTransformationAvailable)
+	{
+		_mainOffset = _availableOptions.size();
+		_availableOptions.push_back("STR_TRANSFORMATIONS_OVERVIEW");
+	}
+
 	bool refreshDeadSoldierStats = false;
+
 	for (const auto* transformationRule : availableTransformations)
 	{
 		_availableOptions.push_back(transformationRule->getName());
@@ -124,13 +146,7 @@ SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base
 			refreshDeadSoldierStats = true;
 		}
 	}
-	if (refreshDeadSoldierStats)
-	{
-		for (auto* deadMan : *_game->getSavedGame()->getDeadSoldiers())
-		{
-			deadMan->prepareStatsWithBonuses(_game->getMod()); // refresh stats for sorting
-		}
-	}
+
 	_availableOptions.push_back("STR_AI_LISTBUTTON");
 
 	_cbxScreenActions->setOptions(_availableOptions, true);
@@ -333,7 +349,7 @@ void SoldiersState::init()
 	_base->setInBattlescape(false);
 
 	_base->prepareSoldierStatsWithBonuses(); // refresh stats for sorting
-	initList(0);
+	initList(_lstSoldiers->getScroll());
 }
 
 /**
@@ -580,6 +596,48 @@ void SoldiersState::moveSoldierDown(Action *action, unsigned int row, bool max)
 void SoldiersState::btnOkClick(Action *)
 {
 	_game->popState();
+}
+
+/**
+ * Opens the Psionic Training screen.
+ * @param action Pointer to an action.
+ */
+void SoldiersState::btnPsiTrainingClick(Action *)
+{
+	_game->pushState(new AllocatePsiTrainingState(_base));
+}
+
+/**
+ * Opens the Martial Training screen.
+ * @param action Pointer to an action.
+ */
+void SoldiersState::btnTrainingClick(Action *)
+{
+	_game->pushState(new AllocateTrainingState(_base));
+}
+
+/**
+ * Opens the Memorial screen.
+ * @param action Pointer to an action.
+ */
+void SoldiersState::btnMemorialClick(Action *)
+{
+	_game->pushState(new SoldierMemorialState);
+}
+
+/**
+ * Opens the Transformations Overview screen.
+ * @param action Pointer to an action.
+ */
+void SoldiersState::btnTransformationsOverviewClick(Action *)
+{
+	if (_mainOffset > 0)
+	{
+		// needed in SoldierTransformationListState::lstTransformationsClick()
+		_cbxScreenActions->setSelected(_mainOffset);
+
+		_game->pushState(new SoldierTransformationListState(_base, _cbxScreenActions));
+	}
 }
 
 /**
