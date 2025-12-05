@@ -116,10 +116,6 @@ SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base
 	if (isTransformationAvailable)
 		_availableOptions.push_back("STR_TRANSFORMATIONS_OVERVIEW");
 
-	_btnMemorial->setVisible(false);
-	_btnPsiTraining->setVisible(false);
-	_btnTraining->setVisible(false);
-
 	_availableOptions.push_back("STR_SOLDIER_INFO");
 	_availableOptions.push_back("STR_MEMORIAL");
 	_availableOptions.push_back("STR_INVENTORY");
