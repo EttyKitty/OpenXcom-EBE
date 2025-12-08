@@ -5361,27 +5361,37 @@ float AIModule::brutalScoreFiringMode(BattleAction* action, BattleUnit* target, 
 	}
 	float damageRange = 1.0 + _save->getMod()->DAMAGE_RANGE / 100.0;
 	damage *= target->getArmor()->getDamageModifier(damageType.ResistType);
+	float armorPreDamage = damageType.getArmorPreFinalDamage(damage);
 	damage = (damage * damageRange - relevantArmor) / 2.0f;
 	if (reactionCheck)
 		damage = std::max(1.0f, damage);
-	if (damage <= 0)
+	else
+		damage = std::max(0.0f, damage);
+	if (damage <= 0 && armorPreDamage <= 0)
 		return 0;
 	float damageTypeMod = 0;
-	damageTypeMod += damageType.getHealthFinalDamage(damage) / damage;
-	damageTypeMod += damageType.getWoundFinalDamage(damage) / damage;
-	damageTypeMod += damageType.getStunFinalDamage(damage) / (2 * damage);
-	if (damageType.getArmorFinalDamage(damage) > 0)
-		damageTypeMod += damageType.getArmorFinalDamage(damage) / (3 * damage);
-	if (damageType.getMoraleFinalDamage(damage) > 0)
-		damageTypeMod += damageType.getMoraleFinalDamage(damage) / (5 * damage);
-	if (damageType.getEnergyFinalDamage(damage) > 0)
-		damageTypeMod += damageType.getEnergyFinalDamage(damage) / (10 * damage);
-	if (damageType.getManaFinalDamage(damage) > 0)
-		damageTypeMod += damageType.getManaFinalDamage(damage) / (10 * damage);
-	if (damageType.getTimeFinalDamage(damage) > 0)
-		damageTypeMod += damageType.getTimeFinalDamage(damage) / (10 * damage);
-	if (target->getTile() && target->getTile()->getDangerous())
-		damage /= 2.0f;
+	if (damage > 0)
+	{
+		damageTypeMod += damageType.getHealthFinalDamage(damage) / damage;
+		damageTypeMod += damageType.getWoundFinalDamage(damage) / damage;
+		damageTypeMod += damageType.getStunFinalDamage(damage) / (2 * damage);
+		if (damageType.getArmorFinalDamage(damage) > 0)
+			damageTypeMod += damageType.getArmorFinalDamage(damage) / (3 * damage);
+		if (damageType.getMoraleFinalDamage(damage) > 0)
+			damageTypeMod += damageType.getMoraleFinalDamage(damage) / (5 * damage);
+		if (damageType.getEnergyFinalDamage(damage) > 0)
+			damageTypeMod += damageType.getEnergyFinalDamage(damage) / (10 * damage);
+		if (damageType.getManaFinalDamage(damage) > 0)
+			damageTypeMod += damageType.getManaFinalDamage(damage) / (10 * damage);
+		if (damageType.getTimeFinalDamage(damage) > 0)
+			damageTypeMod += damageType.getTimeFinalDamage(damage) / (10 * damage);
+		if (target->getTile() && target->getTile()->getDangerous())
+			damage /= 2.0f;
+	}
+	else
+	{
+		damageTypeMod = 1.0 / 3.0;
+	}
 
 	float attacks = static_cast<float>(tuTotal) / tuCost;
 	if (energyCost > 0)
@@ -5448,7 +5458,7 @@ float AIModule::brutalScoreFiringMode(BattleAction* action, BattleUnit* target, 
 	//{
 	//	Log(LOG_INFO) << action->weapon->getRules()->getName() << " attack-type: " << (int)action->type
 	//				  << " No LOS-Penalty: "<< action->weapon->getRules()->getNoLOSAccuracyPenalty(_save->getMod())
-	//				  << " damage: " << damage << " armor: " << relevantArmor << " damage-mod: " << target->getArmor()->getDamageModifier(action->weapon->getRules()->getDamageType()->ResistType)
+	//				  << " damage: " << damage + armorPreDamage << " armor: " << relevantArmor << " damage-mod: " << target->getArmor()->getDamageModifier(action->weapon->getRules()->getDamageType()->ResistType)
 	//				  << " accuracy : " << accuracy << " numberOfShots : " << numberOfShots << " tuCost : " << tuCost << " tuTotal: " << tuTotal
 	//				  << " from: " << originPosition << " to: "<<action->target
 	//				  << " distance: " << distance << " dangerMod: " << dangerMod << " explosionMod: " << explosionMod << " grenade ridding urgency: " << grenadeRiddingUrgency()
@@ -5456,7 +5466,7 @@ float AIModule::brutalScoreFiringMode(BattleAction* action, BattleUnit* target, 
 	//				  << " damageTypeMod: " << damageTypeMod
 	//				  << " score: " << damage * accuracy * numberOfShots * dangerMod * explosionMod * targetQuality;
 	//}
-	return damage * accuracy * numberOfShots * dangerMod * explosionMod * targetQuality * damageTypeMod;
+	return (damage + armorPreDamage) * accuracy * numberOfShots * dangerMod * explosionMod * targetQuality * damageTypeMod;
 }
 
 /**
@@ -7233,6 +7243,7 @@ float AIModule::damagePotential(Position pos, BattleUnit* target, int tuTotal, i
 
 			// Apply resistance modifier
 			damageForCalc *= target->getArmor()->getDamageModifier(weapon->getRules()->getDamageType()->ResistType);
+			float armorPreDamage = weapon->getRules()->getDamageType()->getArmorPreFinalDamage(damageForCalc);
 
 			float damageRangeFactor = 1.0f + _save->getMod()->DAMAGE_RANGE / 100.0f;
 
@@ -7247,7 +7258,7 @@ float AIModule::damagePotential(Position pos, BattleUnit* target, int tuTotal, i
 			// Calculate final damage for *this action* using its own (modified) power
 			float damagePerExecution = (damageForCalc * damageRangeFactor - relevantArmor) / 2.0f;
 			damagePerExecution *= accuracy * numberOfShots * explosionMod;
-			damagePerExecution = std::max(0.0f, damagePerExecution);
+			damagePerExecution = std::max(0.0f, damagePerExecution + armorPreDamage / 3.0f);
 
 			// --- FIX 2: Kill Efficiency Calculation ---
 
