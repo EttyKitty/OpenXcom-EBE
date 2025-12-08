@@ -84,6 +84,7 @@ OPT bool oxceBattleTouchButtonsEnabled;
 OPT bool oxceQuickSearchButton;
 OPT bool oxceHighlightNewTopics;
 OPT bool oxcePediaShowClipSize;
+OPT int oxcePediaSortResistances; // hidden, unhide if becomes popular?
 
 OPT int oxceInterceptTableSize;
 OPT bool oxceEnableSlackingIndicator;
@@ -212,3 +213,4 @@ OPT SDLKey keyReadyMedikit;
 OPT SDLKey keyClearLeftHand;
 
 OPT int battleXcomSpeedOrig;
+OPT int battleAlienSpeedOrig;

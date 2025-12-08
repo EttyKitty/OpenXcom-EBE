@@ -1801,6 +1801,7 @@ void DebriefingState::prepareDebriefing()
 			save->removeAllSoldiersFromXcomCraft(craft); // needed in case some soldiers couldn't spawn
 			base->removeCraft(craft, false);
 			delete craft;
+			save->increaseCraftLostMission();
 			craft = 0; // To avoid a crash down there!!
 			lostCraft = true;
 		}

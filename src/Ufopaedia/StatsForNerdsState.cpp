@@ -2307,6 +2307,7 @@ void StatsForNerdsState::initItemList()
 		addInteger(ss, itemRule->getListOrder(), "listOrder");
 		addBoolean(ss, itemRule->getHidePower(), "hidePower");
 		addBoolean(ss, itemRule->getIgnoreAmmoPower(), "ignoreAmmoPower");
+		addSingleString(ss, itemRule->getMonthlyBuyLimitMessage(), "monthlyBuyLimitMessage");
 
 		addSection("{Inventory}", "", _white);
 		addVectorOfIntegers(ss, itemRule->getCustomItemPreviewIndex(), "customItemPreviewIndex");
@@ -3290,6 +3291,7 @@ void StatsForNerdsState::initFacilityList()
 
 		addSection("{Naming}", "", _white);
 		addSingleString(ss, facilityRule->getType(), "type");
+		addSingleString(ss, facilityRule->getUfopediaType(), "ufopediaType");
 		addInteger(ss, facilityRule->getListOrder(), "listOrder");
 		addInteger(ss, facilityRule->getMissileAttraction(), "missileAttraction", 100);
 		addRule(ss, facilityRule->getDestroyedFacility(), "destroyedFacility");
@@ -3542,6 +3544,7 @@ void StatsForNerdsState::initCraftList()
 		addSection("{Naming}", "", _white);
 		addSingleString(ss, craftRule->getType(), "type");
 		addInteger(ss, craftRule->getListOrder(), "listOrder");
+		addSingleString(ss, craftRule->getMonthlyBuyLimitMessage(), "monthlyBuyLimitMessage");
 
 		addSection("{Geoscape}", "", _white);
 		addSingleString(ss, craftRule->getDefaultDisplayAltitude(), "defaultAltitude", "STR_VERY_LOW");
@@ -3971,6 +3974,7 @@ void StatsForNerdsState::initCraftWeaponList()
 
 		addSection("{Naming}", "", _white);
 		addSingleString(ss, craftWeaponRule->getType(), "type");
+		addSingleString(ss, craftWeaponRule->getUfopediaType(), "ufopediaType");
 		addBoolean(ss, craftWeaponRule->getHidePediaInfo(), "hidePediaInfo");
 
 		addSection("{Visuals}", "", _white);
