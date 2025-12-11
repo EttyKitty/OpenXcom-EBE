@@ -391,6 +391,11 @@ void OptionsAdvancedState::lstOptionsClick(Action *action)
 			min = -1;
 			max = 2;
 		}
+		else if (i == &Options::brutalAI || i == &Options::brutalCivilians)
+		{
+			min = 0;
+			max = 2;
+		}
 		else if (i == &Options::battleExplosionHeight)
 		{
 			min = 0;

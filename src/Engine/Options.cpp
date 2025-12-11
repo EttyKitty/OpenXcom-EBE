@@ -595,8 +595,8 @@ void createAdvancedOptionsOTHER()
 	_info.push_back(OptionInfo(OPTION_OTHER, "preprimeGrenades", &preprimeGrenades, 1, "STR_PREPRIMEGRENADES", "STR_BATTLESCAPE"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "updateTurnsSinceSeenByClue", &updateTurnsSinceSeenByClue, true, "STR_UPDATETURNSSINCESEENBYCLUE", "STR_BATTLESCAPE"));
 
-	_info.push_back(OptionInfo(OPTION_OTHER, "brutalAI", &brutalAI, true, "STR_BRUTALAI", "STR_AI"));
-	_info.push_back(OptionInfo(OPTION_OTHER, "brutalCivilians", &brutalCivilians, false, "STR_BRUTALCIVILIANS", "STR_AI"));
+	_info.push_back(OptionInfo(OPTION_OTHER, "brutalAI", &brutalAI, 1, "STR_BRUTALAI", "STR_AI"));
+	_info.push_back(OptionInfo(OPTION_OTHER, "brutalCivilians", &brutalCivilians, 0, "STR_BRUTALCIVILIANS", "STR_AI"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "ignoreDelay", &ignoreDelay, true, "STR_IGNOREDELAY", "STR_AI"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "allowPreprime", &allowPreprime, true, "STR_ALLOWPREPRIME", "STR_AI"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "avoidMines", &avoidMines, true, "STR_AVOIDMINES", "STR_AI"));
