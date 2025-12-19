@@ -566,7 +566,8 @@ void createOptionsOTHER()
 
 void createAdvancedOptionsOTHER()
 {
-	_info.push_back(OptionInfo(OPTION_OTHER, "showCraftHangar", &showCraftHangar, false, "STR_SHOW_CRAFT_HANGAR", "STR_GENERAL"));	
+	_info.push_back(OptionInfo(OPTION_OTHER, "showCraftHangar", &showCraftHangar, false, "STR_SHOW_CRAFT_HANGAR", "STR_GENERAL"));
+	_info.push_back(OptionInfo(OPTION_OTHER, "forcedAbsoluteCosts", &forcedAbsoluteCosts, false, "STR_FORCED_ABSOLUTE_COSTS", "STR_BATTLESCAPE"));
 
 	_info.push_back(OptionInfo(OPTION_OTHER, "dogfightAI", &dogfightAI, true, "STR_DOGFIGHTAI", "STR_GEOSCAPE"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "aggressiveRetaliation", &aggressiveRetaliation, true, "STR_AGGRESSIVERETALIATION", "STR_GEOSCAPE"));
