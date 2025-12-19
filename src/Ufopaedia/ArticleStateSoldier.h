@@ -1,6 +1,6 @@
 #pragma once
 /*
- * Copyright 2010-2016 OpenXcom Developers.
+ * Copyright 2010-2025 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -17,16 +17,30 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "ArticleState.h"
 
-#define MIN_REQUIRED_RULESET_VERSION_NUMBER 8,5,0,0
+namespace OpenXcom
+{
+	class Game;
+	class Text;
+	class TextList;
+	class ArticleDefinitionSoldier;
 
-#define OPENXCOM_VERSION_ENGINE "Extended"
+	/**
+	 * ArticleStateSoldier has a caption, text, background image and a stats block.
+	 * The layout of the description text and stats block can vary,
+	 * depending on the background image.
+	 */
 
-#define OPENXCOM_VERSION_SHORT "Brutal 8.5 + RA v3.0"
-#define OPENXCOM_VERSION_LONG "8.5.0.0"
-#define OPENXCOM_VERSION_NUMBER 8,5,0,0
+	class ArticleStateSoldier : public ArticleState
+	{
+	public:
+		ArticleStateSoldier(ArticleDefinitionSoldier *article_defs, std::shared_ptr<ArticleCommonState> state);
+		virtual ~ArticleStateSoldier();
 
-#ifndef OPENXCOM_VERSION_GIT
-#define OPENXCOM_VERSION_GIT " (v2025-12-11)"
-
-#endif
+	protected:
+		Text *_txtTitle;
+		Text *_txtInfo;
+		TextList *_lstStats;
+	};
+}
