@@ -2403,7 +2403,7 @@ RuleItemUseCost BattleUnit::getActionTUs(BattleActionType actionType, const Rule
 
 void BattleUnit::applyPercentages(RuleItemUseCost &cost, const RuleItemUseFlat &flat) const
 {
-	// forced absolute costs (convert any percentage values in flat one)
+	// forced absolute costs (convert any percentage values to flat ones)
 	if (Options::forcedAbsoluteCosts)
 	{
 		return;
