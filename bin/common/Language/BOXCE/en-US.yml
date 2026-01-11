@@ -98,6 +98,8 @@ en-US:
   STR_SHOOTING_SPREAD_MODE_DESC: "{ALT}0>{ALT} Uneven (Original game) {NEWLINE}{ALT}1>{ALT} Uniform in all directions {NEWLINE}{ALT}2>{ALT} Uniform tight (increased chance to hit)"
   STR_SHOW_CRAFT_HANGAR: "Show hangar types for crafts"
   STR_SHOW_CRAFT_HANGAR_DESC: "Craft entries in UFOPAEDIA will show which hangar can allocate the craft"
+  STR_FORCED_ABSOLUTE_COSTS: "Forced flat costs"
+  STR_FORCED_ABSOLUTE_COSTS_DESC: "When enabled, any percentage consumation of attributes will be converted to absolute value."
   STR_SMARTCONTROLEQUIP: "Smart ctrl-click and auto-equip"
   STR_SMARTCONTROLEQUIP_DESC: "Ctrl-clicking items in the loadout-phase will prefer slots that are faster to reach. The off-hand will be deprioritized if the main-hand holds a two-handed item. Auto-equip uses the same logic."
   STR_STRICTBLOCKEDCHECKING: "Strict checking for blockages"
