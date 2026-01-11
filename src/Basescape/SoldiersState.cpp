@@ -103,19 +103,6 @@ SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base
 	_btnOk->onKeyboardPress((ActionHandler)&SoldiersState::btnAIClick, Options::keyAIList);
 	_btnOk->onKeyboardPress((ActionHandler)&SoldiersState::btnTransformationsOverviewClick, SDLK_t);
 
-    // _cbxScreenActions
-
-	_availableOptions.clear();
-	_availableOptions.push_back("STR_SOLDIER_INFO");
-	_availableOptions.push_back("STR_MEMORIAL");
-	_availableOptions.push_back("STR_INVENTORY");
-	if (isPsiBtnVisible)
-		_availableOptions.push_back("STR_PSI_TRAINING");
-	if (isTrnBtnVisible)
-		_availableOptions.push_back("STR_TRAINING");
-	if (isTransformationAvailable)
-		_availableOptions.push_back("STR_TRANSFORMATIONS_OVERVIEW");
-
 	_availableOptions.push_back("STR_SOLDIER_INFO");
 	_availableOptions.push_back("STR_MEMORIAL");
 	_availableOptions.push_back("STR_INVENTORY");
