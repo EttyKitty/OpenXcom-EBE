@@ -21,7 +21,7 @@ ufopaedia:
 fixedUserOptions:
   aggressiveRetaliation: true
   dogfightAI: true
-  brutalAI: true
+  brutalAI: 1
   
 # Slightly decrease score-threshold for losing the game to be same as in UFO-defense on Superhuman
 defeatScore: -1100

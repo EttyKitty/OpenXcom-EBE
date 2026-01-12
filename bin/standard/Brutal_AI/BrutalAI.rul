@@ -12,4 +12,4 @@ ufopaedia:
 fixedUserOptions:
   aggressiveRetaliation: true
   dogfightAI: true
-  brutalAI: true
+  brutalAI: 1
