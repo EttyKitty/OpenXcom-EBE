@@ -1190,6 +1190,7 @@ int Base::getDefenseProbabilityPercentage() const
 
 	double combinedMean = 0.0;
 	double combinedVariance = 0.0;
+	int gravityShieldCount = 0;
 
 	for (const auto* fac : _facilities)
 	{
@@ -1198,6 +1199,9 @@ int Base::getDefenseProbabilityPercentage() const
 
 		int defenseValue = std::max(0, fac->getRules()->getDefenseValue());
 		int defenseHitRatio = std::max(0, std::min(100, fac->getRules()->getHitRatio()));
+
+		if (fac->getRules()->isGravShield())
+			++gravityShieldCount;
 
 		if (defenseValue == 0 || defenseHitRatio == 0)
 			continue;
@@ -1214,6 +1218,8 @@ int Base::getDefenseProbabilityPercentage() const
 		combinedVariance += defenseVariance;
 
 	}
+	combinedMean *= gravityShieldCount + 1;
+	combinedVariance *= gravityShieldCount + 1;
 
 	if (combinedMean == 0)
 		return 0;
