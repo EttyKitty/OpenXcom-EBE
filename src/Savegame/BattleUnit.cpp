@@ -3491,30 +3491,98 @@ bool BattleUnit::addItem(BattleItem *item, const Mod *mod, bool allowSecondClip,
 				}
 				if (!placed && Options::oxceSmartCtrlEquip)
 				{
-					int cheapestCostToMoveToHand = INT_MAX;
-					RuleInventory* cheapestInventoryToMoveToHand = nullptr;
+					// Determine mode: Save quick slots if it's ammo and reload cost is fixed
+					bool useMostExpensive = rule->getBattleType() == BT_AMMO && !Mod::EXTENDED_ITEM_RELOAD_COST;
+
+					// Initialize "Best" values based on search direction
+					// If looking for cheapest: Start at Max, look for lower.
+					// If looking for expensive: Start at -1, look for higher.
+					int bestPrimaryCost = useMostExpensive ? -1 : INT_MAX;
+					int bestSecondaryCost = useMostExpensive ? -1 : INT_MAX;
+
+					RuleInventory* bestInventory = nullptr;
+
+					// 1. Identify Hand IDs
+					const auto& rightHandID = mod->getInventoryRightHand();
+					const auto& leftHandID = mod->getInventoryLeftHand();
+
+					// 2. Check which hands are currently empty
+					bool rightEmpty = getRightHandWeapon() == nullptr;
+					bool leftEmpty = getLeftHandWeapon() == nullptr;
+
+					// 3. Determine optimization target
+					bool optimizeForLeft = (leftEmpty && !rightEmpty);
+
 					for (const auto& s : mod->getInvsList())
 					{
 						RuleInventory* slot = mod->getInventory(s);
+
 						if (slot->getType() == INV_GROUND)
 							continue;
+
+						// Skip hand slots
+						if (slot->isLeftHand() || slot->isRightHand())
+							continue;
+
 						if (fitItemToInventory(slot, item, true))
 						{
-							int currCost = std::min(slot->getCost(mod->getInventoryRightHand()), slot->getCost(mod->getInventoryLeftHand()));
-							if (slot->isLeftHand() || slot->isRightHand())
-								continue;
-							if (currCost <= cheapestCostToMoveToHand)
+							int costRight = slot->getCost(rightHandID);
+							int costLeft = slot->getCost(leftHandID);
+
+							int primaryCost = optimizeForLeft ? costLeft : costRight;
+							int secondaryCost = optimizeForLeft ? costRight : costLeft;
+
+							bool isBetterSlot = false;
+
+							if (useMostExpensive)
 							{
-								cheapestCostToMoveToHand = currCost;
-								cheapestInventoryToMoveToHand = slot;
+								// AMMO LOGIC: Maximize cost (save quick slots for grenades/etc)
+								if (primaryCost > bestPrimaryCost)
+								{
+									isBetterSlot = true;
+								}
+								else if (primaryCost == bestPrimaryCost)
+								{
+									// Tie-breaker: If primary reach is same, put it in the slot
+									// that is harder to reach with the OTHER hand.
+									if (secondaryCost > bestSecondaryCost)
+									{
+										isBetterSlot = true;
+									}
+								}
+							}
+							else
+							{
+								// STANDARD LOGIC: Minimize cost (quickest access)
+								if (primaryCost < bestPrimaryCost)
+								{
+									isBetterSlot = true;
+								}
+								else if (primaryCost == bestPrimaryCost)
+								{
+									// Tie-breaker: If primary reach is same, pick the slot
+									// that is faster to reach with the OTHER hand (e.g. Belt vs Leg).
+									if (secondaryCost < bestSecondaryCost)
+									{
+										isBetterSlot = true;
+									}
+								}
+							}
+
+							if (isBetterSlot)
+							{
+								bestPrimaryCost = primaryCost;
+								bestSecondaryCost = secondaryCost;
+								bestInventory = slot;
 							}
 						}
 					}
-					if (cheapestInventoryToMoveToHand != nullptr)
+
+					if (bestInventory != nullptr)
 					{
-						if (cheapestInventoryToMoveToHand->getType() == INV_SLOT)
+						if (bestInventory->getType() == INV_SLOT)
 						{
-							placed = fitItemToInventory(cheapestInventoryToMoveToHand, item, testMode);
+							placed = fitItemToInventory(bestInventory, item, testMode);
 						}
 					}
 				}
