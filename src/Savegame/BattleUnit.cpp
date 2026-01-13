@@ -3491,16 +3491,10 @@ bool BattleUnit::addItem(BattleItem *item, const Mod *mod, bool allowSecondClip,
 				}
 				if (!placed && Options::oxceSmartCtrlEquip)
 				{
-					// Determine mode: Save quick slots if it's ammo and reload cost is fixed
-					bool useMostExpensive = rule->getBattleType() == BT_AMMO && !Mod::EXTENDED_ITEM_RELOAD_COST;
-
-					// Initialize "Best" values based on search direction
-					// If looking for cheapest: Start at Max, look for lower.
-					// If looking for expensive: Start at -1, look for higher.
-					int bestPrimaryCost = useMostExpensive ? -1 : INT_MAX;
-					int bestSecondaryCost = useMostExpensive ? -1 : INT_MAX;
-
+					int bestPrimaryCost = INT_MAX;
+					int bestSecondaryCost = INT_MAX; // Used to break ties (e.g. Belt vs Leg)
 					RuleInventory* bestInventory = nullptr;
+					bool useMostExpensive = rule->getBattleType() == BT_AMMO && !Mod::EXTENDED_ITEM_RELOAD_COST;
 
 					// 1. Identify Hand IDs
 					const auto& rightHandID = mod->getInventoryRightHand();
@@ -3511,16 +3505,21 @@ bool BattleUnit::addItem(BattleItem *item, const Mod *mod, bool allowSecondClip,
 					bool leftEmpty = getLeftHandWeapon() == nullptr;
 
 					// 3. Determine optimization target
+					// Rule: "One hand is empty, the other isn't: optimize for reachability of the empty hand"
+					// Rule: "Both hands or no hands are empty: optimize for right-hand-reachability"
+					// This simplifies to: Optimize for Left ONLY if Left is empty AND Right is NOT empty.
 					bool optimizeForLeft = (leftEmpty && !rightEmpty);
 
 					for (const auto& s : mod->getInvsList())
 					{
 						RuleInventory* slot = mod->getInventory(s);
 
+						// Basic filters
 						if (slot->getType() == INV_GROUND)
 							continue;
 
-						// Skip hand slots
+						// Optimization: Check if it's a hand BEFORE checking if item fits.
+						// We are looking for storage slots (pockets/bags), not hands.
 						if (slot->isLeftHand() || slot->isRightHand())
 							continue;
 
@@ -3532,48 +3531,24 @@ bool BattleUnit::addItem(BattleItem *item, const Mod *mod, bool allowSecondClip,
 							int primaryCost = optimizeForLeft ? costLeft : costRight;
 							int secondaryCost = optimizeForLeft ? costRight : costLeft;
 
-							bool isBetterSlot = false;
-
-							if (useMostExpensive)
-							{
-								// AMMO LOGIC: Maximize cost (save quick slots for grenades/etc)
-								if (primaryCost > bestPrimaryCost)
-								{
-									isBetterSlot = true;
-								}
-								else if (primaryCost == bestPrimaryCost)
-								{
-									// Tie-breaker: If primary reach is same, put it in the slot
-									// that is harder to reach with the OTHER hand.
-									if (secondaryCost > bestSecondaryCost)
-									{
-										isBetterSlot = true;
-									}
-								}
-							}
-							else
-							{
-								// STANDARD LOGIC: Minimize cost (quickest access)
-								if (primaryCost < bestPrimaryCost)
-								{
-									isBetterSlot = true;
-								}
-								else if (primaryCost == bestPrimaryCost)
-								{
-									// Tie-breaker: If primary reach is same, pick the slot
-									// that is faster to reach with the OTHER hand (e.g. Belt vs Leg).
-									if (secondaryCost < bestSecondaryCost)
-									{
-										isBetterSlot = true;
-									}
-								}
-							}
-
-							if (isBetterSlot)
+							// Case A: Found a strictly better slot for the target hand
+							if (primaryCost < bestPrimaryCost)
 							{
 								bestPrimaryCost = primaryCost;
 								bestSecondaryCost = secondaryCost;
 								bestInventory = slot;
+							}
+							// Case B: Found a slot with equal cost for target hand (Tie-Breaker)
+							// Example: Target Left. Leg->Left is 4TU. Belt->Left is 4TU.
+							// Leg->Right is 6TU. Belt->Right is 4TU.
+							// We choose Belt because secondary cost (4) is lower than Leg secondary (6).
+							else if (primaryCost == bestPrimaryCost)
+							{
+								if (secondaryCost < bestSecondaryCost)
+								{
+									bestSecondaryCost = secondaryCost;
+									bestInventory = slot;
+								}
 							}
 						}
 					}
