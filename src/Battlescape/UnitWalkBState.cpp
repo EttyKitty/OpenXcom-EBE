@@ -136,8 +136,6 @@ void UnitWalkBState::think()
 			_pf->abortPath();
 			_parent->popState();
 		}
-		if (_unit->getAIModule())
-			_unit->getAIModule()->allowAttack(false);
 	};
 
 	if (_unit->getStatus() == STATUS_WALKING || _unit->getStatus() == STATUS_FLYING)
