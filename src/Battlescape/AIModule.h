@@ -281,8 +281,6 @@ public:
 	float damagePotential(Position pos, BattleUnit* target, int tuTotal, int energyTotal);
 	/// checks if a position is visible to the enemy
 	bool isPositionVisibleToEnemy(Position pos);
-	/// allows or forbids attacking without another movement-logic-check
-	void allowAttack(bool allow);
 };
 
 struct MoveEvaluation

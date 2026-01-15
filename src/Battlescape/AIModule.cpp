@@ -5263,10 +5263,6 @@ float AIModule::brutalScoreFiringMode(BattleAction* action, BattleUnit* target, 
 			if (!_save->getTileEngine()->validMeleeRange(originPosition, directionToLook, _unit, target, 0))
 				accuracy = 0;
 		}
-		else if (distance >= 2)
-		{
-			accuracy = 0;
-		}
 	}
 	else if (shouldAvoidMeleeRange(target) && distance < 2)
 	{
@@ -7161,10 +7157,6 @@ float AIModule::damagePotential(Position pos, BattleUnit* target, int tuTotal, i
 				{
 					accuracy = 0;
 				}
-				else if (distance >= 2)
-				{
-					accuracy = 0;
-				}
 			}
 			else if (shouldAvoidMeleeRange(target) && distance < 2)
 			{
@@ -7326,11 +7318,6 @@ bool AIModule::isPositionVisibleToEnemy(Position pos)
 		}
 	}
 	return false;
-}
-
-void AIModule::allowAttack(bool allow)
-{
-	_allowedToCheckAttack = allow;
 }
 
 }
