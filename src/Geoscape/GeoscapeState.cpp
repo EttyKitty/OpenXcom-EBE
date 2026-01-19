@@ -131,6 +131,7 @@
 #include "../Mod/AlienDeployment.h"
 #include "../Mod/AlienRace.h"
 #include "../Mod/RuleInterface.h"
+#include "../Mod/RuleSoldier.h"
 #include "../Mod/RuleVideo.h"
 #include "../Mod/Texture.h"
 #include "../fmath.h"
@@ -4938,8 +4939,53 @@ void GeoscapeState::updateSlackingIndicator()
 		int freePsi = 0;
 		for (auto* xcomBase : *_game->getSavedGame()->getBases())
 		{
-			freeGym += xcomBase->getFreeTrainingSpace();
-			freePsi += xcomBase->getFreePsiLabs();
+			int facilityGym = xcomBase->getFreeTrainingSpace();
+			if (facilityGym > 0)
+			{
+				int soldGym = 0;
+				for (auto* soldier : *xcomBase->getSoldiers())
+				{
+					bool isTraining = soldier->isInTraining();
+					bool isQueued = !isTraining && soldier->getReturnToTrainingWhenHealed();
+					bool isDone = soldier->isFullyTrained();
+
+					if (isTraining || isQueued || isDone)
+					{
+						// ignore this guy
+					}
+					else
+					{
+						// can train, or can be queued for training
+						soldGym++;
+					}
+					if (soldGym >= facilityGym) break;
+				}
+				freeGym += soldGym;
+			}
+
+			int facilityPsi = xcomBase->getFreePsiLabs();
+			if (facilityPsi > 0)
+			{
+				int soldPsi = 0;
+				for (auto* soldier : *xcomBase->getSoldiers())
+				{
+					bool isTraining = soldier->isInPsiTraining();
+					bool isDone = soldier->isFullyPsiTrained();
+					bool isNotEligible = soldier->getRules()->getTrainingStatCaps().psiSkill <= 0;
+
+					if (isTraining || isDone || isNotEligible)
+					{
+						// ignore this guy
+					}
+					else
+					{
+						// can train
+						soldPsi++;
+					}
+					if (soldPsi >= facilityPsi) break;
+				}
+				freePsi += soldPsi;
+			}
 		}
 		if (freeGym > 0 || freePsi > 0)
 		{
