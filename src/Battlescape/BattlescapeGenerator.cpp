@@ -1366,73 +1366,6 @@ void BattlescapeGenerator::autoEquip(std::vector<BattleUnit*> units, Mod *mod, s
 		{
 			return a->getTotalWeight() > b->getTotalWeight();
 		});
-	for (int pass = 0; pass < 4; ++pass)
-	{
-		BattleItem* bi = nullptr;
-		for (auto iter = craftInv->begin(); iter != craftInv->end();)
-		{
-			bi = (*iter);
-			if (bi->getRules()->getInventoryHeight() == 0 || bi->getRules()->getInventoryWidth() == 0)
-			{
-				// don't autoequip hidden items, whatever they are
-				++iter;
-				continue;
-			}
-			if (bi->getSlot() == groundRuleInv)
-			{
-				bool add = false;
-
-				switch (pass)
-				{
-				// priority 1: rifles.
-				case 0:
-					add = bi->getRules()->isRifle();
-					break;
-				// priority 2: pistols (assuming no rifles were found).
-				case 1:
-					add = bi->getRules()->isPistol();
-					break;
-				// priority 3: ammunition.
-				case 2:
-					add = bi->getRules()->getBattleType() == BT_AMMO;
-					break;
-				// priority 4: leftovers.
-				case 3:
-					add = !bi->getRules()->isPistol() &&
-							!bi->getRules()->isRifle() &&
-							(bi->getRules()->getBattleType() != BT_FLARE || worldShade > mod->getMaxDarknessToSeeUnits());
-					break;
-				default:
-					break;
-				}
-
-				if (add)
-				{
-					for (auto* bu : units)
-					{
-						if (!bu->hasInventory() || !bu->getGeoscapeSoldier() || (!overrideEquipmentLayout && !bu->getGeoscapeSoldier()->getEquipmentLayout()->empty()))
-						{
-							continue;
-						}
-						// let's not be greedy, we'll only take a second extra clip
-						// if everyone else has had a chance to take a first.
-						bool allowSecondClip = (pass == 3);
-						if (bu->addItem(bi, mod, allowSecondClip, allowAutoLoadout))
-						{
-							iter = craftInv->erase(iter);
-							add = false;
-							break;
-						}
-					}
-					if (!add)
-					{
-						continue;
-					}
-				}
-			}
-			++iter;
-		}
-	}
 	// Xilmi: Continue trying to distribute leftovers in a round-robin-kind of way until noone can take anything anymore
 	bool someoneGotSomething = false;
 	do
@@ -1472,16 +1405,34 @@ void BattlescapeGenerator::autoEquip(std::vector<BattleUnit*> units, Mod *mod, s
 
 				// 1. Calculate how many items of this type the unit 'bu' currently has.
 				int countOnUnit = 0;
+				float baseScore = 1.0;
 				std::string candidateItemName = candidateItem->getRules()->getName(); // Get the type of the item we're considering
 
 				// Iterate over all inventory slots of the unit 'bu' to count existing items of this type
 				for (const auto& unitItem : *bu->getInventory())
 				{
-					if (unitItem->getRules()->getName() == candidateItemName)
-						countOnUnit++;
+					//If it's ammo for an item we already have, we double the score
+					if (unitItem->getRules()->getSlotForAmmo(candidateItem->getRules()) != -1)
+					{
+						baseScore = 2.0;
+					}
+					else if (candidateItem->getRules()->getBattleType() == unitItem->getRules()->getBattleType())
+					{
+						// Having more than one copy of the following battle-types is kinda pointless. It should still be possible but discouraged.
+						if (candidateItem->getRules()->getBattleType() == BT_FIREARM
+							|| candidateItem->getRules()->getBattleType() == BT_MELEE
+							|| candidateItem->getRules()->getBattleType() == BT_MINDPROBE
+							|| candidateItem->getRules()->getBattleType() == BT_PSIAMP
+							|| candidateItem->getRules()->getBattleType() == BT_SCANNER)
+							countOnUnit += 10;
+						else if (unitItem->getRules()->getName() == candidateItemName)
+						{
+							countOnUnit++;
+						}
+					}
 				}
 
-				double currentItemScore = 1.0 / (1.0 + static_cast<double>(countOnUnit));
+				double currentItemScore = baseScore / (1.0 + static_cast<double>(countOnUnit));
 				if (bu->addItem(candidateItem, mod, true, allowAutoLoadout, false, true, true))
 				{
 					if (currentItemScore > highestScoreForBu)
