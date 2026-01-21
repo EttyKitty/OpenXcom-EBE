@@ -316,6 +316,7 @@ void ProjectileFlyBState::init()
 		Tile *targetTile = _parent->getSave()->getTile(_action.target);
 		Position originVoxel = _parent->getTileEngine()->getOriginVoxel(_action, _parent->getSave()->getTile(_origin));
 		bool foundLoF = false;
+        bool selfShot = false;
 
 		if (targetTile->getUnit() &&
 			((_unit->getFaction() != FACTION_PLAYER) ||
@@ -325,6 +326,7 @@ void ProjectileFlyBState::init()
 			{
 				// don't shoot at yourself but shoot at the floor
 				_targetVoxel = _action.target.toVoxel() + Position(8, 8, 0);
+                selfShot = true;
 			}
 			else if (Options::battleRealisticAccuracy)
 			{
@@ -387,7 +389,7 @@ void ProjectileFlyBState::init()
 				}
 			}
 
-			if (!foundLoF)
+            if (!foundLoF && !selfShot)
 			{
 				// Failed to find LOF
 				_action.relativeOrigin = BattleActionOrigin::CENTRE; // reset to the normal origin
