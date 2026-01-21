@@ -3484,7 +3484,7 @@ bool BattleUnit::addItem(BattleItem *item, const Mod *mod, bool allowSecondClip,
 						}
 					}
 				}
-				if (!placed && Options::oxceSmartCtrlEquip)
+				if (!placed)
 				{
 					int bestPrimaryCost = INT_MAX;
 					int bestSecondaryCost = INT_MAX; // Used to break ties (e.g. Belt vs Leg)
