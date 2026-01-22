@@ -3574,7 +3574,6 @@ void AIModule::brutalThink(BattleAction* action)
 	originAction.actor = _unit;
 	originAction.weapon = action->weapon;
 	int bestDirection = _unit->getDirection();
-	float tuToSaveForHide = 0.5;
 	if (unitToWalkTo)
 	{
 		targetPosition = unitToWalkTo->getPosition();
@@ -3604,12 +3603,11 @@ void AIModule::brutalThink(BattleAction* action)
 				Log(LOG_INFO) << "Want to look at path towards: " << targetPosition << " Tile to look at: " << towardsPeekPos;
 			}
 			peakPosition = towardsPeekPos;
-			if(_unit->getTimeUnits() - getTurnCostTowards(peakPosition) > getMaxTU(_unit)* tuToSaveForHide)
-				bestDirection = _save->getTileEngine()->getDirectionTo(myPos, peakPosition);
+			bestDirection = _save->getTileEngine()->getDirectionTo(myPos, peakPosition);
 		}
 	}
 	bool lookAround = false;
-	if (!_unit->isCheatOnMovement() && visibleToEnemy && _visibleEnemies == 0 && _unit->getTimeUnits() - getTurnCostTowards(peakPosition) > getMaxTU(_unit) * tuToSaveForHide)
+	if (!_unit->isCheatOnMovement() && visibleToEnemy && _visibleEnemies == 0)
 		lookAround = true;
 	if (bestDirection == _unit->getDirection() && lookAround)
 	{
@@ -3788,7 +3786,7 @@ void AIModule::brutalThink(BattleAction* action)
 		std::vector<PathfindingNode*> targetNodes = _save->getPathfinding()->findReachablePathFindingNodes(_unit, BattleActionCost(), dummy, true, NULL, &travelTarget, false, false, bam);
 		if (_traceAI)
 		{
-			Log(LOG_INFO) << "travelTarget: " << travelTarget << " targetPositon: " << targetPosition << " sweep-mode: " << sweepMode << " furthest-enemy: " << furthestPositionEnemyCanReach << " targetDistanceTofurthestReach: " << targetDistanceTofurthestReach << " tuToSaveForHide: " << tuToSaveForHide << " peakPosition: " << peakPosition;
+			Log(LOG_INFO) << "travelTarget: " << travelTarget << " targetPositon: " << targetPosition << " sweep-mode: " << sweepMode << " furthest-enemy: " << furthestPositionEnemyCanReach << " targetDistanceTofurthestReach: " << targetDistanceTofurthestReach << " peakPosition: " << peakPosition;
 		}
 		float myTuDistFromTarget = tuCostToReachPosition(_positionAtStartOfTurn, targetNodes, NULL, true);
 		float myWalkToDist = myMaxTU + myTuDistFromTarget;
@@ -3963,7 +3961,6 @@ void AIModule::brutalThink(BattleAction* action)
 			bool shouldHaveBeenAbleToAttack = pos == myPos && _tuWhenChecking == _unit->getTimeUnits();
 
 			bool realLineOfFire = lineOfFire;
-			bool enoughTUToPeak = _unit->getTimeUnits() - pu->getTUCost(false).time > myMaxTU * tuToSaveForHide && _unit->getEnergy() - pu->getTUCost(false).energy > _unit->getBaseStats()->stamina * tuToSaveForHide;
 			//! Special case: Our target is at a door and the tile we want to go to is too and they have a distance of 1. That means the target is blocking door from other side. So we go there and open it!
 			if (!lineOfFire)
 			{
@@ -4061,14 +4058,14 @@ void AIModule::brutalThink(BattleAction* action)
 						visiblePath += 1;
 				}
 			}
-			if (!sweepMode && crossEnemyVision <= 1 && !enemyHasHighGround)
+			if (!sweepMode && crossEnemyVision <= 1 && !enemyHasHighGround && haveTUToAttack)
 			{
-				if (haveTUToAttack && myPos != pos && enemyShouldBeVisible && !outOfRangeForShortRangeWeapon)
+				if (myPos != pos && enemyShouldBeVisible && !outOfRangeForShortRangeWeapon)
 				{
 					directPeakScore = remainingTimeUnits;
 					me.IsDirectPeak = true;
 				}
-				else if (enoughTUToPeak && !pathInvolvesFalling && !_unit->isCheatOnMovement() && (myMaxTU == _unit->getTimeUnits() || _save->getTileEngine()->isNextToDoor(myTile)))
+				else if (!pathInvolvesFalling && !_unit->isCheatOnMovement() && (myMaxTU == _unit->getTimeUnits() || _save->getTileEngine()->isNextToDoor(myTile)))
 				{
 					bool viable = !tile->hasNoFloor();
 					if (pos.x == myPos.x && pos.y == myPos.y)
@@ -4209,7 +4206,7 @@ void AIModule::brutalThink(BattleAction* action)
 					}
 				}
 			}
-			if ((discoverThreat == 0 || immobileEnemies) && !contact && !IAmPureMelee && !tile->getDangerous() && !tile->getFire() && !(pu->getTUCost(false).time > getMaxTU(_unit) * tuToSaveForHide) && !_save->getTileEngine()->isNextToDoor(tile) && (pu->getTUCost(false).time < _tuCostToReachClosestPositionToBreakLos || _tuWhenChecking != _unit->getTimeUnits()))
+			if ((discoverThreat == 0 || immobileEnemies) && !contact && !IAmPureMelee && !tile->getDangerous() && !tile->getFire() && !_save->getTileEngine()->isNextToDoor(tile) && (pu->getTUCost(false).time < _tuCostToReachClosestPositionToBreakLos || _tuWhenChecking != _unit->getTimeUnits()))
 			{
 				_tuCostToReachClosestPositionToBreakLos = pu->getTUCost(false).time;
 				_energyCostToReachClosestPositionToBreakLos = pu->getTUCost(false).energy;
