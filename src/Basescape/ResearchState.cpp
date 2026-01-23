@@ -104,7 +104,8 @@ ResearchState::ResearchState(Base *base) : _base(base)
 	{
 		_lstResearch->setArrowColumn(192, ARROW_VERTICAL);
 	}
-	_lstResearch->setColumns(3, 158, 58, 70);
+	_lstResearch->setColumns(4, 148, 20, 40, 98);
+	_lstResearch->setAlign(ALIGN_RIGHT, 1);
 	_lstResearch->setSelectable(true);
 	_lstResearch->setBackground(_window);
 	_lstResearch->setMargin(2);
