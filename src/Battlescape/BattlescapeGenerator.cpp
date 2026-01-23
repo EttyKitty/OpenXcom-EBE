@@ -1433,7 +1433,7 @@ void BattlescapeGenerator::autoEquip(std::vector<BattleUnit*> units, Mod *mod, s
 				}
 
 				double currentItemScore = baseScore / (1.0 + static_cast<double>(countOnUnit));
-				if (bu->addItem(candidateItem, mod, true, allowAutoLoadout, false, true, true))
+				if (bu->addItem(candidateItem, mod, true, allowAutoLoadout, true, true, true))
 				{
 					if (currentItemScore > highestScoreForBu)
 					{
@@ -1446,7 +1446,7 @@ void BattlescapeGenerator::autoEquip(std::vector<BattleUnit*> units, Mod *mod, s
 			// 4. If a best item was found for unit 'bu' among all available items, attempt to give it.
 			if (bestItemToGiveToBu != nullptr)
 			{
-				if (bu->addItem(bestItemToGiveToBu, mod, true, allowAutoLoadout, false, true))
+				if (bu->addItem(bestItemToGiveToBu, mod, true, allowAutoLoadout, true, true))
 				{
 					someoneGotSomething = true;
 					// This unit has received its one (best) item for this pass.
