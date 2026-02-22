@@ -2245,7 +2245,7 @@ void GeoscapeState::ufoDetection(Ufo* ufo, const std::vector<Craft*>* activeCraf
 			}
 			ufo->setDetected(true);
 			// don't show if player said he doesn't want to see this UFO anymore
-			if (!_game->getSavedGame()->isUfoOnIgnoreList(ufo->getId()))
+			if (!_game->getSavedGame()->isUfoOnIgnoreList(ufo->getId()) && !ufo->getRules()->isNoAlert())
 			{
 				popup(new UfoDetectedState(ufo, this, true, ufo->getHyperDetected()));
 			}
@@ -3688,6 +3688,12 @@ void GeoscapeState::handleBaseDefense(Base *base, Ufo *ufo)
 			// let the player know that some facilities were destroyed, but the base survived
 			popup(new BaseDestroyedState(base, ufo, true, true));
 		}
+
+		// continue mayhem?
+		if (ufo->getRules()->getMissileStopChance() > 0 && RNG::percent(ufo->getRules()->getMissileStopChance()))
+		{
+			ufo->getMission()->setInterrupted(true);
+		}
 	}
 	else if (base->getAvailableSoldiers(true, true) > 0 || !base->getVehicles()->empty())
 	{
@@ -4873,6 +4879,12 @@ void GeoscapeState::resize(int &dX, int &dY)
 	}
 	switch (Options::geoscapeScale)
 	{
+	case SCALE_SCREEN_DIV_10:
+		divisor = 10;
+		break;
+	case SCALE_SCREEN_DIV_8:
+		divisor = 8;
+		break;
 	case SCALE_SCREEN_DIV_6:
 		divisor = 6;
 		break;

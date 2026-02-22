@@ -2850,6 +2850,18 @@ int BattleUnit::getArmor(UnitSide side) const
 }
 
 /**
+ * Set the max armor value of a certain armor side.
+ * @param armor Amount of armor.
+ * @param side The side of the armor.
+ */
+void BattleUnit::setMaxArmor(int armor, UnitSide side)
+{
+	_maxArmor[side] = Clamp(armor, 0, UnitStats::BaseStatLimit);
+	_currentArmor[side] = Clamp(_currentArmor[side], 0, _maxArmor[side]);
+}
+
+
+/**
  * Get the max armor value of a certain armor side.
  * @param side The side of the armor.
  * @return Amount of armor.
@@ -6418,6 +6430,13 @@ void getArmorValueScript(const BattleUnit *bu, int &ret, int side)
 	}
 	ret = 0;
 }
+void setArmorValueMaxScript(BattleUnit *bu, int side, int value)
+{
+	if (bu && 0 <= side && side < SIDE_MAX)
+	{
+		bu->setMaxArmor(value, (UnitSide)side);
+	}
+}
 void getArmorValueMaxScript(const BattleUnit *bu, int &ret, int side)
 {
 	if (bu && 0 <= side && side < SIDE_MAX)
@@ -7335,6 +7354,7 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 	bu.add<&setArmorValueScript>("setArmor", "first arg is side, second one is new value of armor");
 	bu.add<&addArmorValueScript>("addArmor", "first arg is side, second one is value to add to armor");
 	bu.add<&getArmorValueScript>("getArmor", "first arg return armor value, second arg is side");
+	bu.add<&setArmorValueMaxScript>("setArmorMax", "first arg is side, second one is new value of max armor");
 	bu.add<&getArmorValueMaxScript>("getArmorMax", "first arg return max armor value, second arg is side");
 
 	bu.add<&BattleUnit::getFatalWounds>("getFatalwoundsTotal", "sum for every body part");

@@ -1303,7 +1303,18 @@ void Map::drawTerrain(Surface *surface)
 							{
 								frameNumber += Mod::SMOKE_OFFSET;
 							}
-							frameNumber += int(floor((tile->getSmoke() / 6.0) - 0.1)); // see http://www.ufopaedia.org/images/c/cb/Smoke.gif
+							if (Mod::EXTENDED_SMOKE_OFFSET == 0)
+							{
+								frameNumber += int(floor((tile->getSmoke() / 6.0) - 0.1)); // see http://www.ufopaedia.org/images/c/cb/Smoke.gif
+							}
+							else if (Mod::EXTENDED_SMOKE_OFFSET == 1)
+							{
+								frameNumber += int(floor((tile->getSmoke() / 6.0) - 0.1)) * 4;
+							}
+							else // if (Mod::EXTENDED_SMOKE_OFFSET == 2)
+							{
+								frameNumber += (tile->getSmoke() - 1) / 5 * 4;
+							}
 							shade = tileShade;
 						}
 
