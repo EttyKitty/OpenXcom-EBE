@@ -1945,7 +1945,7 @@ void SavedBattleGame::initUnit(BattleUnit *unit, size_t itemLevel)
 	}
 
 	unit->setSpecialWeapon(this, false);
-	Unit* rule = unit->getUnitRules();
+	const Unit* rule = unit->getUnitRules();
 	const Armor* armor = unit->getArmor();
 	// Built in weapons: the unit has this weapon regardless of loadout or what have you.
 	addFixedItems(unit, armor->getBuiltInWeapons());

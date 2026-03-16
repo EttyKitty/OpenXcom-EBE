@@ -3363,9 +3363,9 @@ bool SavedGame::handleResearchUnlockedByMissions(const RuleResearch* research, c
 	researchVec.push_back(research);
 	addResearchDiaryEntryForMission(research, DiscoverySourceType::MISSION, deployment, nullptr);
 	addFinishedResearch(research, mod, base, true);
-	if (!research->getLookup().empty())
+	if (research->getLookup())
 	{
-		researchVec.push_back(mod->getResearch(research->getLookup(), true));
+		researchVec.push_back(research->getLookup());
 		addResearchDiaryEntryForMission(researchVec.back(), DiscoverySourceType::MISSION, deployment, nullptr);
 		addFinishedResearch(researchVec.back(), mod, base, true);
 	}
@@ -3375,9 +3375,9 @@ bool SavedGame::handleResearchUnlockedByMissions(const RuleResearch* research, c
 		researchVec.push_back(bonus);
 		addResearchDiaryEntryForMission(bonus, DiscoverySourceType::FREE_FROM, nullptr, research);
 		addFinishedResearch(bonus, mod, base, true);
-		if (!bonus->getLookup().empty())
+		if (bonus->getLookup())
 		{
-			researchVec.push_back(mod->getResearch(bonus->getLookup(), true));
+			researchVec.push_back(bonus->getLookup());
 			addResearchDiaryEntryForMission(researchVec.back(), DiscoverySourceType::FREE_FROM, nullptr, research);
 			addFinishedResearch(researchVec.back(), mod, base, true);
 		}

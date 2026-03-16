@@ -67,9 +67,22 @@ SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base
 	// another button for craft selection; and a 3rd one for "Ok"
 	// Create objects
 	_window = new Window(this, 320, 200, 0, 0);
-	_btnOk = new TextButton(64, 16, 248, 176);
-	_cbxScreenActions = new ComboBox(this, 128, 16, 8, 176, true);
-	_cbxFilterByCraft = new ComboBox(this, 96, 16, 144, 176, true);	
+	if (showThreeButtons)
+	{
+		_btnOk = preAdd(new TextButton(96, 16, 216, 176));
+		_btnMemorial = preAdd(new TextButton(96, 16, 8, 176));
+	}
+	else
+	{
+		_btnOk = preAdd(new TextButton(148, 16, 164, 176));
+		_btnMemorial = preAdd(new TextButton(148, 16, 8, 176));
+	}
+
+	_btnPsiTraining = preAdd(new TextButton(96, 16, 112, 176));
+	_btnTraining = preAdd(new TextButton(96, 16, 112, 176));
+
+	_cbxScreenActions = preAdd(new ComboBox(this, 148, 16, 8, 176, true));
+	_cbxFilterByCraft = preAdd(new ComboBox(this, 96, 16, 144, 176, true));
 	_txtTitle = new Text(168, 17, 16, 8);
 	_cbxSortBy = new ComboBox(this, 120, 16, 192, 8, false);
 	_txtName = new Text(114, 9, 16, 32);
