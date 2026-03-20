@@ -6226,6 +6226,8 @@ int AIModule::maxExtenderRangeWith(BattleUnit *unit, int tus)
 		highestRangeAvailableWithTUs = std::max(highestRangeAvailableWithTUs, weapon->getRules()->getSnapRange());
 	if (weapon->getRules()->getCostAuto().Time > 0 && unit->getActionTUs(BA_AUTOSHOT, weapon).Time < tus)
 		highestRangeAvailableWithTUs = std::max(highestRangeAvailableWithTUs, weapon->getRules()->getAutoRange());
+	if (weapon->getRules()->getBattleType() == BT_GRENADE && weapon->getRules()->getCostThrow().Time > 0 && unit->getActionTUs(BA_THROW, weapon).Time < tus)
+		highestRangeAvailableWithTUs = std::max(highestRangeAvailableWithTUs, weapon->getRules()->getThrowRange());
 	if (weapon->getRules()->getCostMelee().Time > 0 && unit->getActionTUs(BA_HIT, weapon).Time < tus)
 		highestRangeAvailableWithTUs = std::max(highestRangeAvailableWithTUs, 1);
 	highestRangeAvailableWithTUs = std::min(highestRangeAvailableWithTUs, weapon->getRules()->getMaxRange());
