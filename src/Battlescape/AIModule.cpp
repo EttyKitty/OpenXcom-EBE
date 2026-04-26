@@ -5736,7 +5736,7 @@ void AIModule::brutalBlaster()
 					if (wpPosition.z != targetNode->getPrevNode()->getPosition().z)
 						zChange = true;
 					bool losBreak = false;
-					if (!hasTileSight(targetNode->getPrevNode()->getPosition(), _attackAction.waypoints.front()))
+					if (!_attackAction.waypoints.empty() && !hasTileSight(targetNode->getPrevNode()->getPosition(), _attackAction.waypoints.front()))
 						losBreak = true;
 					//If we have unlimited way-points for our blaster, we might as well put a way-point on every single node along the path
 					if (_attackAction.weapon->getCurrentWaypoints() == -1)
