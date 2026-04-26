@@ -3353,8 +3353,7 @@ void AIModule::brutalThink(BattleAction* action)
 	std::map<Position, int, PositionComparator> bestFriendReachable;
 	bool immobileEnemies = false;
 
-	float panicked = 0;
-	float total = 0;
+	Position visibleFromPosition = myPos;
 	bool visibleToEnemy = false;
 	bool enemyFarAwayFromStart = false;
 	float damagePotentialFromCurrentPosition = 0;
@@ -3395,6 +3394,7 @@ void AIModule::brutalThink(BattleAction* action)
 			if (visble == _unit)
 			{
 				visibleToEnemy = true;
+				visibleFromPosition = target->getPosition();
 				break;
 			}
 		}
@@ -3464,11 +3464,6 @@ void AIModule::brutalThink(BattleAction* action)
 			}
 			_save->getPathfinding()->setIgnoreFriends(false);
 		}
-		else
-		{
-			panicked++;
-		}
-		total++;
 		BattleUnit* LoFCheckUnitForPath = NULL;
 		if (_unit->isCheatOnMovement())
 			LoFCheckUnitForPath = target;
@@ -3573,7 +3568,6 @@ void AIModule::brutalThink(BattleAction* action)
 	BattleAction originAction;
 	originAction.actor = _unit;
 	originAction.weapon = action->weapon;
-	int bestDirection = _unit->getDirection();
 	if (unitToWalkTo)
 	{
 		targetPosition = unitToWalkTo->getPosition();
@@ -3592,81 +3586,19 @@ void AIModule::brutalThink(BattleAction* action)
 			}
 		}
 		iHaveLof = iHaveLof || clearSight(myPos, targetPosition);
-		if (_unit->getVisibleUnits()->empty())
+	}
+	if (!_unit->isCheatOnMovement() && visibleToEnemy && _visibleEnemies == 0)
+	{
+		if (_save->getTileEngine()->getDirectionTo(myPos, visibleFromPosition) != _unit->getDirection())
 		{
-			Position towardsPeekPos = targetPosition;
-			if (!iHaveLof)
-				towardsPeekPos = closestToGoTowards(targetPosition, _allPathFindingNodes, myPos);
-			Tile* towardsPeekTile = _save->getTile(towardsPeekPos);
+			action->type = BA_TURN;
+			action->target = visibleFromPosition;
 			if (_traceAI)
 			{
-				Log(LOG_INFO) << "Want to look at path towards: " << targetPosition << " Tile to look at: " << towardsPeekPos;
+				Log(LOG_INFO) << "Want to look at position: " << visibleFromPosition;
 			}
-			peakPosition = towardsPeekPos;
-			bestDirection = _save->getTileEngine()->getDirectionTo(myPos, peakPosition);
+			return;
 		}
-	}
-	bool lookAround = false;
-	if (!_unit->isCheatOnMovement() && visibleToEnemy && _visibleEnemies == 0)
-		lookAround = true;
-	if (bestDirection == _unit->getDirection() && lookAround)
-	{
-		float highestVisibleTiles = 0;
-		for (int i = 0; i < 8; i++)
-		{
-			float newVisibleTiles = scoreVisibleTiles(_save->getTileEngine()->visibleTilesFrom(_unit, myPos, i, true));
-			if (newVisibleTiles > highestVisibleTiles)
-			{
-				highestVisibleTiles = newVisibleTiles;
-				bestDirection = i;
-			}
-		}
-		if (_traceAI && highestVisibleTiles > 0)
-		{
-			Log(LOG_INFO) << "Want to look in direction: " << bestDirection << " to uncover " << highestVisibleTiles << " new tiles.";
-		}
-	}
-	if (bestDirection != _unit->getDirection() && (visibleToEnemy || lookAround))
-	{
-		Position posToLookAt = myPos;
-		switch (bestDirection)
-		{
-		case 0:
-			posToLookAt.y--;
-			break;
-		case 1:
-			posToLookAt.x++;
-			posToLookAt.y--;
-			break;
-		case 2:
-			posToLookAt.x++;
-			break;
-		case 3:
-			posToLookAt.x++;
-			posToLookAt.y++;
-			break;
-		case 4:
-			posToLookAt.y++;
-			break;
-		case 5:
-			posToLookAt.x--;
-			posToLookAt.y++;
-			break;
-		case 6:
-			posToLookAt.x--;
-			break;
-		case 7:
-			posToLookAt.x--;
-			posToLookAt.y--;
-			break;
-		}
-		action->type = BA_TURN;
-		action->target = posToLookAt;
-		if (_traceAI)
-		{
-			Log(LOG_INFO) << "Want to look at position: " << posToLookAt;
-		}
-		return;
 	}
 
 	// Check if I'm a turret. In this case I can skip everything about walking
@@ -4477,7 +4409,8 @@ void AIModule::brutalThink(BattleAction* action)
 	}
 	else if (bestPeekPreserveScore > 0 && bestFriendReachable[peekPreserveCompromise] <= getReachableBy(_unit, _ranOutOfTUs, false, true)[peekPreserveCompromise])
 	{
-		Log(LOG_INFO) << "peekPreserveCompromise: " << peekPreserveCompromise << " score: " << bestPeekPreserveScore;
+		if (_traceAI)
+			Log(LOG_INFO) << "peekPreserveCompromise: " << peekPreserveCompromise << " score: " << bestPeekPreserveScore;
 		travelTarget = peekPreserveCompromise;
 		indirectPeek = true;
 	}
