@@ -243,6 +243,7 @@ private:
 	int _maxStaticLightDistance, _maxDynamicLightDistance, _enhancedLighting;
 	int _costHireEngineer, _costHireScientist;
 	int _costEngineer, _costScientist, _timePersonnel, _hireByCountryOdds, _hireByRegionOdds, _initialFunding;
+	int _globalTransferCostMult, _globalTransferCostDiv;
 
 	int _aiUseDelayBlaster, _aiUseDelayFirearm, _aiUseDelayGrenade, _aiUseDelayProxy, _aiUseDelayMelee, _aiUseDelayPsionic, _aiUseDelayMedikit;
 	int _aiFireChoiceIntelCoeff, _aiFireChoiceAggroCoeff;
@@ -838,6 +839,11 @@ public:
 	int getHireByCountryOdds() const { return _hireByCountryOdds; }
 	/// Gets the odds of hiring soldiers by region.
 	int getHireByRegionOdds() const { return _hireByRegionOdds; }
+
+	/// Gets the global transfer cost multiplier.
+	int getGlobalTransferCostMultiplier() const { return _globalTransferCostMult; }
+	/// Gets the global transfer cost divider.
+	int getGlobalTransferCostDivider() const { return _globalTransferCostDiv; }
 
 	/// Gets first turn when AI can use Blaster launcher.
 	int getAIUseDelayBlaster() const  {return _aiUseDelayBlaster;}

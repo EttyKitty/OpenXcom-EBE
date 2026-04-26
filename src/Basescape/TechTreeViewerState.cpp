@@ -795,6 +795,27 @@ void TechTreeViewerState::initLists()
 			++row;
 		}
 
+		// spawned random events
+		auto& randomEvents = rule->getEventsRaw();
+		if (!randomEvents.empty())
+		{
+			_lstRight->addRow(1, tr("STR_RANDOM_EVENTS").c_str());
+			_lstRight->setRowColor(row, _blue);
+			_rightTopics.push_back("-");
+			_rightFlags.push_back(TTV_NONE);
+			++row;
+			for (auto& randomEvent : randomEvents.getChoicesRaw())
+			{
+				std::ostringstream chance;
+				chance << "  " << tr(randomEvent.first) << ": " << randomEvent.second;
+				_lstRight->addRow(1, chance.str().c_str());
+				_lstRight->setRowColor(row, _white);
+				_rightTopics.push_back("-");
+				_rightFlags.push_back(TTV_NONE);
+				++row;
+			}
+		}
+
 		// 6. required by
 		if (requiredByResearch.size() > 0 || requiredByManufacture.size() > 0 || requiredByFacilities.size() > 0 || requiredByItems.size() > 0 || requiredByCrafts.size() > 0)
 		{
@@ -1439,6 +1460,27 @@ void TechTreeViewerState::initLists()
 					_rightFlags.push_back(TTV_ITEMS);
 					++row;
 				}
+			}
+		}
+
+		// 4c. random events
+		auto& randomEvents = rule->getEventsRaw();
+		if (!randomEvents.empty())
+		{
+			_lstRight->addRow(1, tr("STR_RANDOM_EVENTS").c_str());
+			_lstRight->setRowColor(row, _blue);
+			_rightTopics.push_back("-");
+			_rightFlags.push_back(TTV_NONE);
+			++row;
+			for (auto& randomEvent : randomEvents.getChoicesRaw())
+			{
+				std::ostringstream chance;
+				chance << "  " << tr(randomEvent.first) << ": " << randomEvent.second;
+				_lstRight->addRow(1, chance.str().c_str());
+				_lstRight->setRowColor(row, _white);
+				_rightTopics.push_back("-");
+				_rightFlags.push_back(TTV_NONE);
+				++row;
 			}
 		}
 

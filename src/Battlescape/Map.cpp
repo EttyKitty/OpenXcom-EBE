@@ -1859,10 +1859,11 @@ void Map::drawTerrain(Surface *surface)
 							if (_save->getBattleGame()->getCurrentAction()->type == BA_LAUNCH || _save->getBattleGame()->getCurrentAction()->sprayTargeting)
 							{
 								_numWaypid->setValue(waypid);
+								_numWaypid->setBordered(true); // OXCE, not configurable
 								_numWaypid->draw();
 								_numWaypid->blitNShade(surface, screenPosition.x + waypXOff, screenPosition.y + waypYOff, 0);
 
-								waypXOff += waypid > 9 ? 8 : 6;
+								waypXOff += waypid > 9 ? 10 : 6; // OXCE
 								if (waypXOff >= 26)
 								{
 									waypXOff = 2;

@@ -22,6 +22,7 @@
 #include "../Engine/Yaml.h"
 #include "RuleBaseFacilityFunctions.h"
 #include "ModScript.h"
+#include "../Savegame/WeightedOptions.h"
 
 namespace OpenXcom
 {
@@ -44,6 +45,7 @@ class RuleResearch
 {
  private:
 	std::string _name, _lookupName, _cutscene, _spawnedItem, _spawnedEvent;
+	WeightedOptions _events;
 	int _spawnedItemCount;
 	std::vector<std::string> _spawnedItemList;
 	std::vector<std::string> _decreaseCounter, _increaseCounter;
@@ -137,6 +139,9 @@ public:
 	const std::vector<std::string>& getDecreaseCounter() const { return _decreaseCounter; }
 	/// Gets the name of custom counter variables to increase when this topic is researched.
 	const std::vector<std::string>& getIncreaseCounter() const { return _increaseCounter; }
+	/// Gets geoscape event rule name to spawn after (each) research completion
+	std::string chooseEvent() const { return _events.choose(); }
+	const WeightedOptions& getEventsRaw() const { return _events; }
 };
 
 }

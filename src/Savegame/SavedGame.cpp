@@ -3452,6 +3452,18 @@ void SavedGame::handlePrimaryResearchSideEffects(const std::vector<const RuleRes
 		// 3l. handle spawned events
 		RuleEvent* spawnedEventRule = mod->getEvent(myResearchRule->getSpawnedEvent());
 		spawnEvent(spawnedEventRule);
+		// try also the weighted list of events, it's the modder's responsibility to use only one or the other
+		{
+			const std::string choice = myResearchRule->chooseEvent();
+			if (!choice.empty())
+			{
+				RuleEvent* eventToSpawn = mod->getEvent(choice, false);
+				if (eventToSpawn)
+				{
+					spawnEvent(eventToSpawn);
+				}
+			}
+		}
 		// 3m. handle counters
 		for (auto& inc : myResearchRule->getIncreaseCounter())
 		{

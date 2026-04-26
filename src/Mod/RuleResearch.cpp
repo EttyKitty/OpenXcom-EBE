@@ -53,6 +53,10 @@ void RuleResearch::load(const YAML::YamlNodeReader& node, Mod* mod, const ModScr
 	mod->loadUnorderedNames(_name, _decreaseCounter, reader["decreaseCounter"]);
 	mod->loadUnorderedNames(_name, _increaseCounter, reader["increaseCounter"]);
 	reader.tryRead("spawnedEvent", _spawnedEvent);
+	if (reader["events"])
+	{
+		_events.load(reader["events"]);
+	}
 	reader.tryRead("cost", _cost);
 	reader.tryRead("points", _points);
 	mod->loadUnorderedNames(_name, _dependenciesName, reader["dependencies"]);
