@@ -59,7 +59,6 @@
 #include "../Savegame/BattleUnitStatistics.h"
 #include "ConfirmEndMissionState.h"
 #include "../fmath.h"
-#include "../Menu/SaveGameState.h"
 
 namespace OpenXcom
 {
@@ -564,18 +563,6 @@ bool BattlescapeGame::kneel(BattleUnit *bu)
  */
 void BattlescapeGame::endTurn()
 {
-	if (Options::strictBattlescapeAutosaveMode && !_save->isPreview() && _save->getSide() == FACTION_PLAYER)
-	{
-		int currentTurn = _parentState->_autosave;
-		if (_parentState->getGame()->getSavedGame()->isIronman())
-		{
-			_parentState->getGame()->pushState(new SaveGameState(OPT_BATTLESCAPE, SAVE_IRONMAN, _parentState->getPalette()));
-		}
-		else if (Options::autosave)
-		{
-			_parentState->getGame()->pushState(new SaveGameState(OPT_BATTLESCAPE, SAVE_AUTO_BATTLESCAPE, _parentState->getPalette(), currentTurn));
-		}
-	}
 	_debugPlay = _save->getDebugMode() && _parentState->getGame()->isCtrlPressed() && (_save->getSide() != FACTION_NEUTRAL);
 	_currentAction.type = BA_NONE;
 	_currentAction.skillRules = nullptr;
