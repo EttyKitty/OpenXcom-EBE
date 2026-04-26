@@ -106,6 +106,8 @@ en-US:
   STR_STRICTBLOCKEDCHECKING_DESC: "Can prevent units from being spawned into walls and helps the AI to find better cover but also may block off areas on the map if the map wasn't built properly."
   STR_UPDATETURNSSINCESEENBYCLUE: "Precise projectile-tracking"
   STR_UPDATETURNSSINCESEENBYCLUE_DESC: "Allows both the player, when holding the alt-key, and Brutal-AI to tell the exact tile an enemy projectile was fired from without having seen the unit that fired."
+  STR_STRICTBATTLESCAPEAUTOSAVEMODE: "Strict Battlescape Autosave Mode"
+  STR_STRICTBATTLESCAPEAUTOSAVEMODE_DESC: "Forces the game to save at the begining and end of each Player turn. {ALT}Warning{ALT} this setting ignores autosave settings and may have performance implications."
   ArmorIgnore: "Armor ignore"
   RandomWoundType: "Wound RNG mode"
   WRT_SPREAD: "0-100% spread"
