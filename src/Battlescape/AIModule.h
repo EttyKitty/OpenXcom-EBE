@@ -280,7 +280,7 @@ public:
 	/// how much damage we can inflict to a given enemy
 	float damagePotential(Position pos, BattleUnit* target, int tuTotal, int energyTotal);
 	/// checks if a position is visible to the enemy
-	bool isPositionVisibleToEnemy(Position pos);
+	bool isPositionVisibleToEnemy(Position pos, bool tileLOSMode = false);
 };
 
 struct MoveEvaluation

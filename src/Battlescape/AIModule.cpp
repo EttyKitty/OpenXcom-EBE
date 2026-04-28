@@ -4074,6 +4074,8 @@ void AIModule::brutalThink(BattleAction* action)
 				if (!isNode && getCoverValue(tile, _unit, 3) == 0)
 					validCover = false;
 			}
+			if (_unit->getMainHandWeapon() != NULL && outOfRangeForShortRangeWeapon && isPositionVisibleToEnemy(pos, true))
+				validCover = false;
 			if (!sweepMode && validCover)
 			{
 				for (auto& reachable : enemyReachable)
@@ -7237,16 +7239,38 @@ float AIModule::damagePotential(Position pos, BattleUnit* target, int tuTotal, i
 	return overallMaxDamage;
 }
 
-bool AIModule::isPositionVisibleToEnemy(Position pos)
+bool AIModule::isPositionVisibleToEnemy(Position pos, bool tileLOSMode)
 {
 	for (BattleUnit* bu : *(_save->getUnits()))
 	{
 		if (!isEnemy(bu) || bu->isOut())
 			continue;
-		for (Tile* buVisible : *bu->getVisibleTiles())
+		for (int x = 0; x < _unit->getArmor()->getSize(); ++x)
 		{
-			if (buVisible->getPosition() == pos)
-				return true;
+			for (int y = 0; y < _unit->getArmor()->getSize(); ++y)
+			{
+				Position checkPos = pos;
+				checkPos += Position(x, y, 0);
+				if (tileLOSMode)
+				{
+					for (int x2 = 0; x2 < bu->getArmor()->getSize(); ++x2)
+					{
+						for (int y2 = 0; y2 < bu->getArmor()->getSize(); ++y2)
+						{
+							Position checkPos2 = bu->getPosition();
+							checkPos2 += Position(x2, y2, 0);
+							if (hasTileSight(checkPos2, checkPos))
+								return true;
+						}
+					}
+					continue;
+				}
+				for (Tile* buVisible : *bu->getVisibleTiles())
+				{
+					if (buVisible->getPosition() == checkPos)
+						return true;
+				}
+			}
 		}
 	}
 	return false;
