@@ -113,3 +113,6 @@ en-US:
   WRT_VANILLA: "vanilla formula"
   hangarType: "Hangar Type"
   spaceOccupied: "Space Occupied"
+  # Diagonal Terrain melee
+  STR_DIAG_TERRAIN_MELEE: "Diagonal Terrain Melee"
+  STR_DIAG_TERRAIN_MELEE_DESC: "Hitting terrain objects at diagonal directions with melee.{NEWLINE}Requires activated \"TerrainMeleeExtended\" feature.{NEWLINE}{ALT}Alt+click{ALT} - to hit objects at current and adjacent tiles."
