@@ -3231,23 +3231,7 @@ TileEngine::ReactionScore TileEngine::determineReactionType(BattleUnit *unit, Ba
 				return reaction;
 			}
 		}
-		if (unit->isAkimbo() &&
-			unit->getLeftHandWeapon()->getRules()->getConfigAkimbo()->shots < 2 &&
-			unit->getRightHandWeapon()->getRules()->getConfigAkimbo()->shots < 2 &&
-			_save->canUseWeapon(unit->getLeftHandWeapon(), unit, false, BA_AKIMBOSHOT) &&
-			_save->canUseWeapon(unit->getRightHandWeapon(), unit, false, BA_AKIMBOSHOT) )
-		{
-			// Is unit able to perform akimbo shooting with each gun`s ammo
-			if (BattleActionCost(BA_AKIMBOSHOT, unit, weapon).haveTU() &&
-				!unit->getLeftHandWeapon()->getRules()->isOutOfRange(unit->distance3dToUnitSq(target)) &&
-				!unit->getRightHandWeapon()->getRules()->isOutOfRange(unit->distance3dToUnitSq(target)) &&
-				 unit->getLeftHandWeapon()->getAmmoForAction(BA_AKIMBOSHOT) &&
-				 unit->getRightHandWeapon()->getAmmoForAction(BA_AKIMBOSHOT))
-			{
-				setReaction(reaction, BA_AKIMBOSHOT, weapon);
-				return reaction;
-			}
-		}
+
 		if (_save->canUseWeapon(weapon, unit, false, BA_SNAPSHOT))
 		{
 			// has a gun capable of snap shot with ammo
