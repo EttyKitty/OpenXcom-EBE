@@ -111,3 +111,6 @@ ru:
   WRT_VANILLA: "Формула из оригинальной игры"
   hangarType: "Тип ангара"
   spaceOccupied: "Место занято"
+ # Diagonal Terrain melee
+  STR_DIAG_TERRAIN_MELEE: "Рукопашно местность по диагонали "
+  STR_DIAG_TERRAIN_MELEE_DESC: "Атака объектов ландшафта по диагонали в ближнем бою.{NEWLINE}Требует включения опции \"terrainMeleeExtended\".{NEWLINE}{ALT}Alt+клик{ALT} - бить объекты на текущей и соседних клетках."

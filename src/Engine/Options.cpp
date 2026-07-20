@@ -569,16 +569,21 @@ void createOptionsOTHER()
 
 void createAdvancedOptionsOTHER()
 {
+	// OTHER options General
 	_info.push_back(OptionInfo(OPTION_OTHER, "showCraftHangar", &showCraftHangar, false, "STR_SHOW_CRAFT_HANGAR", "STR_GENERAL"));
-	_info.push_back(OptionInfo(OPTION_OTHER, "forcedAbsoluteCosts", &forcedAbsoluteCosts, false, "STR_FORCED_ABSOLUTE_COSTS", "STR_BATTLESCAPE"));
 
+	// OTHER options Geoscape
 	_info.push_back(OptionInfo(OPTION_OTHER, "dogfightAI", &dogfightAI, true, "STR_DOGFIGHTAI", "STR_GEOSCAPE"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "aggressiveRetaliation", &aggressiveRetaliation, true, "STR_AGGRESSIVERETALIATION", "STR_GEOSCAPE"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "displayHiddenAlienActivity", &displayHiddenAlienActivity, 0, "STR_DISPLAY_HIDDEN_ALIEN_ACTIVITY", "STR_GEOSCAPE"));
 
+	// OTHER options Basescape
 	_info.push_back(OptionInfo(OPTION_OTHER, "baseDefenseProbability", &baseDefenseProbability, false, "STR_DISPLAY_BASE_DEFENSE_PROBABILITY", "STR_BASESCAPE"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "baseDetectionProbability", &baseDetectionProbability, false, "STR_DISPLAY_BASE_DETECTION_PROBABILITY", "STR_BASESCAPE"));
 
+	// OTHER options Battlescape
+	_info.push_back(OptionInfo(OPTION_OTHER, "diagTerrainMelee", &diagTerrainMelee, false, "STR_DIAG_TERRAIN_MELEE", "STR_BATTLESCAPE"));
+	_info.push_back(OptionInfo(OPTION_OTHER, "forcedAbsoluteCosts", &forcedAbsoluteCosts, false, "STR_FORCED_ABSOLUTE_COSTS", "STR_BATTLESCAPE"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "shootingSpreadMode", &shootingSpreadMode, 1, "STR_SHOOTING_SPREAD_MODE", "STR_BATTLESCAPE"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "useChanceToHit", &useChanceToHit, true, "STR_BATTLECHANCETOHIT", "STR_BATTLESCAPE"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "battleRealisticAccuracy", &battleRealisticAccuracy, false, "STR_BATTLEREALISTICACCURACY", "STR_BATTLESCAPE"));
@@ -599,6 +604,7 @@ void createAdvancedOptionsOTHER()
 	_info.push_back(OptionInfo(OPTION_OTHER, "preprimeGrenades", &preprimeGrenades, 1, "STR_PREPRIMEGRENADES", "STR_BATTLESCAPE"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "updateTurnsSinceSeenByClue", &updateTurnsSinceSeenByClue, true, "STR_UPDATETURNSSINCESEENBYCLUE", "STR_BATTLESCAPE"));
 
+	// OTHER options AI
 	_info.push_back(OptionInfo(OPTION_OTHER, "brutalAI", &brutalAI, 1, "STR_BRUTALAI", "STR_AI"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "brutalCivilians", &brutalCivilians, 0, "STR_BRUTALCIVILIANS", "STR_AI"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "ignoreDelay", &ignoreDelay, true, "STR_IGNOREDELAY", "STR_AI"));
@@ -606,6 +612,8 @@ void createAdvancedOptionsOTHER()
 	_info.push_back(OptionInfo(OPTION_OTHER, "avoidMines", &avoidMines, true, "STR_AVOIDMINES", "STR_AI"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "aiPeformance", &aiPerformanceOptimization, false, "STR_AI_PERFORMANCE", "STR_AI"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "aiCheatMode", &aiCheatMode, 0, "STR_AICHEATMODE", "STR_AI"));
+
+	// OTHER options Autoplay
 	_info.push_back(OptionInfo(OPTION_OTHER, "autoCombat", &autoCombat, false, "STR_AUTOCOMBAT", "STR_AUTO"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "autoCombatEachCombat", &autoCombatEachCombat, true, "STR_AUTOCOMBAT_EACH_COMBAT", "STR_AUTO"));
 	_info.push_back(OptionInfo(OPTION_OTHER, "autoCombatEachTurn", &autoCombatEachTurn, true, "STR_AUTOCOMBAT_EACH_TURN", "STR_AUTO"));

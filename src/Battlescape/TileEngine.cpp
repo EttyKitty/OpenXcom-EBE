@@ -3231,6 +3231,7 @@ TileEngine::ReactionScore TileEngine::determineReactionType(BattleUnit *unit, Ba
 				return reaction;
 			}
 		}
+
 		if (_save->canUseWeapon(weapon, unit, false, BA_SNAPSHOT))
 		{
 			// has a gun capable of snap shot with ammo
@@ -5947,7 +5948,7 @@ bool TileEngine::validTerrainMeleeRange(BattleAction* action)
 	action->terrainMeleeTilePart = 0;
 
 	if (action->weapon)
-	{
+	{	// is melee weapon able to hit terrain ?
 		auto wRule = action->weapon->getRules();
 		if (wRule->getBattleType() == BT_MELEE)
 		{
@@ -5961,79 +5962,115 @@ bool TileEngine::validTerrainMeleeRange(BattleAction* action)
 		}
 	}
 
-	Position pos = action->actor->getPosition();
 	int direction = action->actor->getDirection();
-	BattleUnit* attacker = action->actor;
 
 	if (direction < 0 || direction > 7)
+	{	// only horisontal direction are allowed
+		return false;
+	} 
+	if (!Options::diagTerrainMelee && direction % 2 != 0)
 	{
+		// diagonal directions are not supported. pWWWa: if proper option is not activated
 		return false;
 	}
-	if (direction % 2 != 0)
-	{
-		// diagonal directions are not supported
-		return false;
-	}
+
+	Position pos = action->actor->getPosition();
 	Position p;
 	Pathfinding::directionToVector(direction, &p);
-
 	Tile* originTile = _save->getTile(pos);
-	Tile* originTile2 = originTile;
-	if (originTile && originTile->getTerrainLevel() <= -16)
+
+	if (originTile && originTile->getTerrainLevel() <= -16 && !_save->isAltPressed(true))
 	{
-		// if we are on the upper part of stairs, target one tile above
+		// if we are on the upper part of stairs, target one tile above. pWWWa: let leave at the same tile altitude with pressed Alt (if there are need to hit stair under feet).
 		pos += Position(0, 0, 1);
 		originTile = _save->getTile(pos);
 	}
-	Tile* neighbouringTile = _save->getTile(pos + p);
-	Tile* neighbouringTile2 = nullptr;
-	int size = attacker->getArmor()->getSize();
-	if (size > 1)
+
+	Tile* originTile2 =			originTile;
+	Tile* neighbouringTile =	_save->getTile(pos + p);
+	Tile* neighbouringTile2 =	nullptr;
+	Tile* neighbouringTile3 =	nullptr;
+	int size = action->actor->getArmor()->getSize() - 1; // pWWWa: attacker variable removed, cause it used only once
+
+	switch (direction)
 	{
-		if (direction == 0)
-		{
-			// North
-			originTile2 = _save->getTile(pos + Position(1, 0, 0));
-			neighbouringTile2 = _save->getTile(pos + p + Position(1, 0, 0));
-		}
-		else if (direction == 2)
-		{
-			// East
-			neighbouringTile =  _save->getTile(pos + p + Position(1, 0, 0));
-			neighbouringTile2 = _save->getTile(pos + p + Position(1, 1, 0));
-		}
-		else if (direction == 4)
-		{
-			// South
-			neighbouringTile =  _save->getTile(pos + p + Position(0, 1, 0));
-			neighbouringTile2 = _save->getTile(pos + p + Position(1, 1, 0));
-		}
-		else if (direction == 6)
-		{
-			// West
-			originTile2 = _save->getTile(pos + Position(0, 1, 0));
-			neighbouringTile2 = _save->getTile(pos + p + Position(0, 1, 0));
-		}
-		if (!neighbouringTile2 || !originTile2)
-		{
-			return false;
-		}
+		case 0: // North
+				originTile2 =		_save->getTile(pos + Position(size, 0, 0));
+				neighbouringTile2 = _save->getTile(pos + p + Position(size, 0, 0));
+				break;
+
+		case 2: // East
+				originTile =		_save->getTile(pos + Position(size, 0, 0));
+				originTile2 =		_save->getTile(pos + Position(size, size, 0));
+				neighbouringTile =	_save->getTile(pos + p + Position(size, 0, 0));
+				neighbouringTile2 = _save->getTile(pos + p + Position(size, size, 0));
+				break;
+
+		case 4: // South
+				originTile =		_save->getTile(pos + Position(0, size, 0));
+				originTile2 =		_save->getTile(pos + Position(size, size, 0));
+				neighbouringTile =	_save->getTile(pos + p + Position(0, size, 0));
+				neighbouringTile2 = _save->getTile(pos + p + Position(size, size, 0));
+				break;
+
+		case 6: // West
+				originTile2 =		_save->getTile(pos + Position(0, size, 0));
+				neighbouringTile2 = _save->getTile(pos + p + Position(0, size, 0));
+				break;
+
+		case 1: // North-East
+				originTile =		_save->getTile(pos + Position(size, 0, 0));
+				neighbouringTile =	_save->getTile(pos + p + Position(size, 0, 0));		
+				neighbouringTile2 = _save->getTile(pos + Position(size, -1, 0));
+				neighbouringTile3 = _save->getTile(pos + Position(size + 1, 0, 0));
+				break;
+
+		case 3: // South-East
+				originTile =	    _save->getTile(pos + Position(size, size, 0));
+				neighbouringTile =  _save->getTile(pos + p + Position(size, size, 0));
+				neighbouringTile2 = _save->getTile(pos + p + Position(size, size - 1, 0));
+				neighbouringTile3 = _save->getTile(pos + p + Position(size - 1, size, 0));
+				break;
+
+		case 5: // South-West
+				originTile =		_save->getTile(pos + Position(0, size, 0));
+				neighbouringTile =	_save->getTile(pos + p + Position(0, size, 0));
+				neighbouringTile2 = _save->getTile(pos + Position(0, size + 1, 0));
+				neighbouringTile3 = _save->getTile(pos + Position(- 1, size, 0));
+				break;
+
+		case 7: //North-West
+				neighbouringTile2 = _save->getTile(pos + Position(-1, 0, 0));
+				neighbouringTile3 = _save->getTile(pos + Position(0, -1, 0));
 	}
+
 	if (originTile && neighbouringTile)
 	{
 		auto setTarget = [](Tile* tt, TilePart tp, BattleAction* aa, int dir = -1) -> bool
 		{
+			Position origin = tt->getSavedGame()->getTileEngine()->getSightOriginVoxel(aa->actor, tt) + Position(0, 0, -4);
+			Position target;
+
+			if (!tt->getSavedGame()->getTileEngine()->canTargetTile(&origin, tt, tp, &target, aa->actor, false))
+			{ // is tile reachable (more predictable targeting queue at diagonals)
+				return false;
+			}
+				
 			MapData* obj = tt->getMapData(tp);
 			if (obj)
 			{
-				if (dir > -1 && tp == O_OBJECT)
-				{
+				if (dir > -1 && tp == O_OBJECT && !(Options::diagTerrainMelee && tt->getSavedGame()->isAltPressed(true)))
+				{ 
 					auto bigWall = obj->getBigWall();
 					if (dir == 0 /*north*/ && bigWall != Pathfinding::BIGWALLNORTH && bigWall != Pathfinding::BIGWALLWESTANDNORTH) return false;
 					if (dir == 2 /*east */ && bigWall != Pathfinding::BIGWALLEAST  && bigWall != Pathfinding::BIGWALLEASTANDSOUTH) return false;
 					if (dir == 4 /*south*/ && bigWall != Pathfinding::BIGWALLSOUTH && bigWall != Pathfinding::BIGWALLEASTANDSOUTH) return false;
 					if (dir == 6 /*west */ && bigWall != Pathfinding::BIGWALLWEST  && bigWall != Pathfinding::BIGWALLWESTANDNORTH) return false;
-				}
+					if (dir == 1 /*NW   */ && bigWall != Pathfinding::BIGWALLNWSE) return false;
+					if (dir == 3 /*NE   */ && bigWall != Pathfinding::BIGWALLNESW  && bigWall != Pathfinding::BIGWALLEASTANDSOUTH) return false;
+					if (dir == 5 /*SE   */ && bigWall != Pathfinding::BIGWALLNWSE) return false;
+					if (dir == 7 /*SW   */ && bigWall != Pathfinding::BIGWALLNESW  && bigWall != Pathfinding::BIGWALLWESTANDNORTH) return false;
+				} 
 				if (tp != O_OBJECT && !obj->isDoor() && !obj->isUFODoor() && tt->getTUCost(tp, MT_WALK) != Pathfinding::INVALID_MOVE_COST)
 				{
 					// it is possible to walk through this (rubble) wall... no need to attack it
@@ -6058,76 +6095,88 @@ bool TileEngine::validTerrainMeleeRange(BattleAction* action)
 			return false;
 		};
 
-		if (setTarget(originTile, O_OBJECT, action, direction))
+		if (setTarget(originTile, O_OBJECT, action, direction) ||
+			setTarget(originTile2, O_OBJECT, action, direction))
 		{
 			// All directions: target the object (marked as big wall) on the current tile
 			return true;
 		}
-		if (size > 1)
+
+		switch (direction)
 		{
-			if (setTarget(originTile2, O_OBJECT, action, direction))
-			{
-				// All directions
+		case 0: // North
+				if (setTarget(originTile, O_NORTHWALL, action) ||
+					setTarget(originTile2, O_NORTHWALL, action) ||
+					setTarget(neighbouringTile2, O_WESTWALL, action) && size)
 				return true;
-			}
+				break;
+
+		case 2: // East
+				if (setTarget(neighbouringTile, O_WESTWALL, action) ||
+					setTarget(neighbouringTile2, O_WESTWALL, action) ||
+					setTarget(neighbouringTile2, O_NORTHWALL, action) && size)
+				return true;
+				break;
+
+		case 4: // South
+				if (setTarget(neighbouringTile, O_NORTHWALL, action) ||
+					setTarget(neighbouringTile2, O_NORTHWALL, action) ||
+					setTarget(neighbouringTile2, O_WESTWALL, action) && size)
+				return true;
+				break;
+
+		case 6: // West
+				if (setTarget(originTile, O_WESTWALL, action) ||
+					setTarget(originTile2, O_WESTWALL, action) ||
+					setTarget(neighbouringTile2, O_NORTHWALL, action) && size)
+				return true;
+				break;
+
+		case 1:	 // North-East
+				if (setTarget(neighbouringTile, O_WESTWALL, action) ||		// 3
+					setTarget(neighbouringTile3, O_NORTHWALL, action) ||	// 4
+					setTarget(originTile, O_NORTHWALL, action) ||			// 1
+					setTarget(neighbouringTile3, O_WESTWALL, action))		// 2
+				return true;
+				break;
+				
+		case 3: // South-East 
+				if (setTarget(neighbouringTile, O_WESTWALL, action) ||      // 3
+					setTarget(neighbouringTile, O_NORTHWALL, action) ||     // 4
+					setTarget(neighbouringTile3, O_NORTHWALL, action) ||	// 1
+					setTarget(neighbouringTile2, O_WESTWALL, action))		// 2
+				return true;
+				break;
+				
+		case 5: // North-East
+				if (setTarget(neighbouringTile, O_NORTHWALL, action) ||		// 4
+					setTarget(neighbouringTile2, O_NORTHWALL, action) ||    // 1
+					setTarget(neighbouringTile2, O_WESTWALL, action) ||		// 3
+					setTarget(originTile, O_WESTWALL, action))	 			// 2
+				return true;
+				break;
+
+		case 7: // North-West
+				if (setTarget(neighbouringTile3, O_WESTWALL, action) ||     // 4
+					setTarget(neighbouringTile2, O_NORTHWALL, action) ||	// 3
+					setTarget(originTile, O_NORTHWALL, action) ||			// 2
+					setTarget(originTile, O_WESTWALL, action))				// 1
+				return true;
 		}
 
-		if (direction == 0 && setTarget(originTile, O_NORTHWALL, action))
-		{
-			// North: target the north wall of the same tile
+		if (setTarget(neighbouringTile, O_OBJECT, action) ||
+			setTarget(neighbouringTile2, O_OBJECT, action) && size && !(direction % 2))
+		{	
+			// All directions: target the object on the neighbouring tile  + big unit's second part at non-diagonal direction included
 			return true;
-		}
-		else if (direction == 2 && setTarget(neighbouringTile, O_WESTWALL, action))
-		{
-			// East: target the west wall of the neighbouring tile
-			return true;
-		}
-		else if (direction == 4 && setTarget(neighbouringTile, O_NORTHWALL, action))
-		{
-			// South: target the north wall of the neighbouring tile
-			return true;
-		}
-		else if (direction == 6 && setTarget(originTile, O_WESTWALL, action))
-		{
-			// West: target the west wall of the same tile
-			return true;
-		}
-		if (size > 1)
-		{
-			if (direction == 0 && setTarget(originTile2, O_NORTHWALL, action))
-			{
-				// North
-				return true;
-			}
-			else if (direction == 2 && setTarget(neighbouringTile2, O_WESTWALL, action))
-			{
-				// East
-				return true;
-			}
-			else if (direction == 4 && setTarget(neighbouringTile2, O_NORTHWALL, action))
-			{
-				// South
-				return true;
-			}
-			else if (direction == 6 && setTarget(originTile2, O_WESTWALL, action))
-			{
-				// West
-				return true;
-			}
 		}
 
-		if (setTarget(neighbouringTile, O_OBJECT, action))
+		if ( _save->isAltPressed(true) && direction % 2 &&
+		   ( setTarget(neighbouringTile2, O_OBJECT, action) ||
+			 setTarget(neighbouringTile3, O_OBJECT, action) ) )
 		{
-			// All directions: target the object on the neighbouring tile
+			// Diagonal terrain object targeting helper. Suitable for hitting big walls and terrain stuff at adjacent tiles.
 			return true;
-		}
-		if (size > 1)
-		{
-			if (setTarget(neighbouringTile2, O_OBJECT, action))
-			{
-				// All directions
-				return true;
-			}
 		}
 	}
 
