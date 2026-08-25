@@ -377,11 +377,11 @@ public:
 	int getNumTotalUnits() const;
 
 	/// Validates craft space and craft constraints on soldier armor change.
-	bool validateArmorChange(int sizeFrom, int sizeTo) const;
+	bool validateArmorChange(int spaceFrom, int spaceTo) const;
 	/// Validates craft space and craft constraints on adding soldier to a craft.
-	CraftPlacementErrors validateAddingSoldier(int space, const Soldier* s) const;
+	CraftPlacementErrors validateAddingSoldier(int availableSpace, const Soldier* s) const;
 	/// Validates craft space and craft constraints on adding vehicles to a craft.
-	int validateAddingVehicles(int totalSize) const;
+	int validateAddingVehicles(int spaceOccupied) const;
 	// Set position assigned to Craft in BaseEscape
 	void setBaseEscapePosition(const Position position);
 	/// Get position assigned to Craft in BaseEscape
