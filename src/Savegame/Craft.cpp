@@ -2309,9 +2309,9 @@ CraftPlacementErrors Craft::validateAddingSoldier(int availableSpace, const Sold
  * Validates craft space and craft constraints on adding vehicles to a craft.
  * @return Maximum allowed number of vehicles to add.
  */
-int Craft::validateAddingVehicles(int totalSize) const
+int Craft::validateAddingVehicles(int spaceOccupied) const
 {
-	int maximumAllowed = getSpaceAvailable() / totalSize;
+	int maximumAllowed = getSpaceAvailable() / spaceOccupied;
 
 	{
 		maximumAllowed = std::min(maximumAllowed, getMaxVehiclesAndLargeSoldiersClamped() - getNumVehiclesAndLargeSoldiers());
@@ -2321,7 +2321,7 @@ int Craft::validateAddingVehicles(int totalSize) const
 	{
 		maximumAllowed = std::min(maximumAllowed, _rules->getMaxVehicles() - getNumTotalVehicles());
 	}
-	if (totalSize == 1)
+	if (spaceOccupied == 1)
 	{
 		if (_rules->getMaxSmallVehicles() > -1)
 		{
