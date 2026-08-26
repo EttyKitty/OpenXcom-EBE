@@ -4933,6 +4933,20 @@ int TileEngine::calculateParabolaVoxel(Position origin, Position target, bool st
 	return result;
 }
 
+void TileEngine::getParabolaTrajectory(Position origin, Position target, std::vector<Position> &trajectory, double curvature, const Position delta)
+{
+	trajectory.clear();
+	if (target == origin) return;
+	trajectory.push_back(origin);
+	calculateParabolaHelper(origin, target, curvature, delta,
+		[&](Position p)
+		{
+			trajectory.push_back(p);
+			return false;
+		}
+	);
+}
+
 /**
  * Calculates z "grounded" value for a particular voxel (used for projectile shadow).
  * @param voxel The voxel to trace down.
@@ -6295,6 +6309,54 @@ bool TileEngine::validateThrow(BattleAction &action, Position originVoxel, Posit
 	}
 
 	return true;
+}
+
+/**
+ * Find valid throw/arcing target voxel and curvature - shared by Projectile::calculateThrow and Map LOF preview (DRY).
+ * Builds candidate list (single voxel for BA_THROW, getTargetVoxelCandidates for arcing) and loops validateThrow.
+ * @param action The action with target tile set (action.target).
+ * @param originVoxel Origin voxel of the throw.
+ * @param outTargetVoxel Found target voxel (valid only if return true).
+ * @param outCurvature Found curvature (valid only if return true).
+ * @param outVoxelType Last V_* test (V_OUTOFBOUNDS if no candidate found).
+ * @param forced Force-fire flag (true bypasses tile validity, arcing only; BA_THROW always false).
+ * @return true if valid curvature found, false otherwise.
+ */
+bool TileEngine::findThrowTargetAndCurvature(BattleAction &action, Position originVoxel, Position &outTargetVoxel, double &outCurvature, int &outVoxelType, bool forced)
+{
+	Tile *targetTile = _save->getTile(action.target);
+	Position baseVoxel = action.target.toVoxel() + Position(8, 8, (targetTile ? 1 + -targetTile->getTerrainLevel() : 12));
+	std::vector<Position> targets;
+	if (action.type == BA_THROW)
+	{
+		targets.push_back(baseVoxel);
+		forced = false;
+	}
+	else
+	{
+		targets = getTargetVoxelCandidates(action.target, forced, action.actor);
+		if (targets.empty())
+		{
+			targets.push_back(baseVoxel);
+		}
+	}
+	outVoxelType = V_OUTOFBOUNDS;
+	outCurvature = 0.0;
+	for (const auto &cand : targets)
+	{
+		double cur = 0.0;
+		int vt = V_OUTOFBOUNDS;
+		if (validateThrow(action, originVoxel, cand, _save->getDepth(), &cur, &vt, forced))
+		{
+			outTargetVoxel = cand;
+			outCurvature = cur;
+			outVoxelType = vt;
+			return true;
+		}
+		// keep last test for caller diagnostics (mirrors Projectile::calculateThrow test handling)
+		outVoxelType = vt;
+	}
+	return false;
 }
 
 /**

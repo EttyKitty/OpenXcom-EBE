@@ -493,44 +493,21 @@ int Projectile::calculateTrajectory(double accuracy, const Position& originVoxel
  */
 int Projectile::calculateThrow(double accuracy)
 {
-	Tile* targetTile = _save->getTile(_action.target);
-
 	Position originVoxel = _save->getTileEngine()->getOriginVoxel(_action, 0);
 	Position targetVoxel;
-	std::vector<Position> targets;
-	double curvature;
-	targetVoxel = _action.target.toVoxel() + Position(8, 8, (1 + -targetTile->getTerrainLevel()));
-	targets.clear();
-	bool forced = false;
-
-	if (_action.type == BA_THROW)
-	{
-		targets.push_back(targetVoxel);
-	}
-	else
-	{
-		bool isForced = Options::forceFire && _save->isCtrlPressed(true) && _save->getSide() == FACTION_PLAYER;
-		forced = isForced;
-		targets = _save->getTileEngine()->getTargetVoxelCandidates(_action.target, isForced, _action.actor);
-		// fallback if helper returned empty (no floor etc.) - keep at least one
-		if (targets.empty())
-		{
-			targets.push_back(targetVoxel);
-		}
-	}
-
-	_distance = 0.0f;
+	double curvature = 0.0;
 	int test = V_OUTOFBOUNDS;
-	for (const auto& pos : targets)
+	bool forced = false;
+	if (_action.type != BA_THROW)
 	{
-		targetVoxel = pos;
-		if (_save->getTileEngine()->validateThrow(_action, originVoxel, targetVoxel, _save->getDepth(), &curvature, &test, forced))
-		{
-			break;
-		}
+		forced = Options::forceFire && _save->isCtrlPressed(true) && _save->getSide() == FACTION_PLAYER;
 	}
-	if (!forced && test == V_OUTOFBOUNDS)
-		return test; // no line of fire
+	_distance = 0.0f;
+	if (!_save->getTileEngine()->findThrowTargetAndCurvature(_action, originVoxel, targetVoxel, curvature, test, forced))
+	{
+		if (!forced && test == V_OUTOFBOUNDS)
+			return test; // no line of fire
+	}
 
 	test = V_OUTOFBOUNDS;
 	int tries = 0;

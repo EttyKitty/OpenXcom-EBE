@@ -2623,13 +2623,15 @@ void Map::updateLoFCache()
 		_cachedLoFHitType = V_EMPTY;
 		_cachedLoFHitVoxel = Position(-1, -1, -1);
 		_cachedLoFHitFraction = 1.0;
+		_cachedLoFIsParabola = false;
+		_cachedLoFCurvature = 0.0;
 	};
 	if (!Options::oxceShowLoFLine)
 	{
 		clearLoF();
 		return;
 	}
-	if (_cursorType != CT_AIM)
+	if (_cursorType != CT_AIM && _cursorType != CT_THROW && _cursorType != CT_WAYPOINT)
 	{
 		clearLoF();
 		return;
@@ -2641,12 +2643,6 @@ void Map::updateLoFCache()
 	}
 	BattleAction *action = _save->getBattleGame()->getCurrentAction();
 	if (!action || !action->targeting || !action->actor)
-	{
-		clearLoF();
-		return;
-	}
-	// TODO: BA_THROW currently deferred - show no line for throws; later implement parabola via calculateParabolaVoxel
-	if (action->type == BA_THROW)
 	{
 		clearLoF();
 		return;
@@ -2671,7 +2667,8 @@ void Map::updateLoFCache()
 		return;
 	}
 	Tile *originTile = nullptr;
-	if (!_waypoints.empty() && (action->type == BA_LAUNCH || action->sprayTargeting))
+	// launch waypoints are missile flight segments originating from the last placed waypoint; spray waypoints are target interpolation, origin stays with the shooter
+	if (!_waypoints.empty() && action->type == BA_LAUNCH)
 	{
 		Position lastWp = _waypoints.back();
 		originTile = _save->getTile(lastWp);
@@ -2692,10 +2689,121 @@ void Map::updateLoFCache()
 	BattleAction tmp = *action;
 	tmp.target = effectivePos;
 	tmp.waypoints.assign(_waypoints.begin(), _waypoints.end());
+	bool isThrow = (tmp.type == BA_THROW);
+	bool isArcing = (tmp.weapon && tmp.weapon->getArcingShot(tmp.type));
+	bool useParabola = isThrow || isArcing;
+	if (useParabola)
+	{
+		// honest parabola preview - shared helper with Projectile::calculateThrow (no accuracy delta, DRY)
+		Position originVoxel = _save->getTileEngine()->getOriginVoxel(tmp, originTile);
+		bool forced = Options::forceFire && _isCtrlPressed && _save->getSide() == FACTION_PLAYER;
+		Position chosenVoxel = Position(-1, -1, -1);
+		double curvature = 0.0;
+		int vt = V_OUTOFBOUNDS;
+		bool found = _save->getTileEngine()->findThrowTargetAndCurvature(tmp, originVoxel, chosenVoxel, curvature, vt, forced);
+		if (!found)
+		{
+			clearLoF();
+			_cachedLoFTarget = effectivePos;
+			_cachedLoFActor = action->actor;
+			_cachedLoFActionType = (int)action->type;
+			_cachedLoFRelativeOrigin = (int)tmp.relativeOrigin;
+			_cachedLoFKneeled = action->actor->isKneeled();
+			_cachedLoFWaypointCount = _waypoints.size();
+			_cachedLoFIsParabola = true;
+			_cachedLoFCurvature = 0.0;
+			_cachedLoFOriginVoxel = originVoxel;
+			_cachedLoFTargetVoxel = Position(-1, -1, -1);
+			return;
+		}
+		// full parabola for drawing (no collision) + truncated for hit detection
+		std::vector<Position> truncated;
+		int hitInt = _save->getTileEngine()->calculateParabolaVoxel(originVoxel, chosenVoxel, true, &truncated, tmp.actor, curvature, Position(0, 0, 0));
+		VoxelType hit = (VoxelType)hitInt;
+		_cachedLoFHitType = hit;
+		_cachedLoFHitVoxel = Position(-1, -1, -1);
+		if (hit != V_EMPTY && !truncated.empty())
+		{
+			_cachedLoFHitVoxel = truncated.back();
+		}
+		// full parabola trajectory for drawing (so red segment continues along arc, not straight line)
+		_save->getTileEngine()->getParabolaTrajectory(originVoxel, chosenVoxel, _cachedLoFTrajectory, curvature, Position(0, 0, 0));
+		_cachedLoFIsParabola = true;
+		_cachedLoFCurvature = curvature;
+		_cachedLoFOriginVoxel = originVoxel;
+		_cachedLoFTargetVoxel = chosenVoxel;
+		_cachedLoFTarget = effectivePos;
+		_cachedLoFActor = action->actor;
+		_cachedLoFActionType = (int)action->type;
+		_cachedLoFRelativeOrigin = (int)tmp.relativeOrigin;
+		_cachedLoFKneeled = action->actor->isKneeled();
+		_cachedLoFWaypointCount = _waypoints.size();
+		if (hit == V_EMPTY || truncated.empty() || _cachedLoFTrajectory.empty())
+		{
+			_cachedLoFHitFraction = 1.0;
+		}
+		else
+		{
+			bool intentional = _save->getTileEngine()->isLofHitIntentional(hit, _cachedLoFHitVoxel, effectivePos);
+			if (intentional)
+			{
+				_cachedLoFHitFraction = 1.0;
+			}
+			else
+			{
+				// hit fraction along parabola screen polyline length (per-segment Z aware)
+				// find hit index in full trajectory (closest to hit voxel)
+				size_t hitIdx = _cachedLoFTrajectory.size() - 1;
+				for (size_t i = 0; i < _cachedLoFTrajectory.size(); ++i)
+				{
+					if (_cachedLoFTrajectory[i] == _cachedLoFHitVoxel)
+					{
+						hitIdx = i;
+						break;
+					}
+				}
+				// fallback: closest distance if exact not found (parabola line segments vs points)
+				if (_cachedLoFTrajectory[hitIdx] != _cachedLoFHitVoxel)
+				{
+					double bestDist = 1e9;
+					for (size_t i = 0; i < _cachedLoFTrajectory.size(); ++i)
+					{
+						double ddx = (double)_cachedLoFTrajectory[i].x - _cachedLoFHitVoxel.x;
+						double ddy = (double)_cachedLoFTrajectory[i].y - _cachedLoFHitVoxel.y;
+						double ddz = (double)_cachedLoFTrajectory[i].z - _cachedLoFHitVoxel.z;
+						double d2 = ddx*ddx + ddy*ddy + ddz*ddz;
+						if (d2 < bestDist) { bestDist = d2; hitIdx = i; }
+					}
+				}
+				// compute screen polyline lengths
+				double totalLen = 0.0, hitLen = 0.0;
+				Position prevScreen, curScreen;
+				_camera->convertVoxelToScreen(_cachedLoFTrajectory[0], &prevScreen);
+				for (size_t i = 1; i < _cachedLoFTrajectory.size(); ++i)
+				{
+					_camera->convertVoxelToScreen(_cachedLoFTrajectory[i], &curScreen);
+					double seg = std::sqrt((double)(curScreen.x - prevScreen.x)*(curScreen.x - prevScreen.x) + (double)(curScreen.y - prevScreen.y)*(curScreen.y - prevScreen.y));
+					totalLen += seg;
+					if (i <= hitIdx) hitLen += seg;
+					prevScreen = curScreen;
+				}
+				if (totalLen < 1e-9) _cachedLoFHitFraction = 1.0;
+				else
+				{
+					double t = hitLen / totalLen;
+					if (t < 0.0) t = 0.0;
+					if (t > 1.0) t = 1.0;
+					_cachedLoFHitFraction = t;
+				}
+			}
+		}
+		return;
+	}
+	// straight line LOF (snapshot/auto/aimed/launch)
 	Position targetVoxel;
 	if (tmp.weapon && tmp.weapon->getArcingShot(tmp.type))
 	{
-		// arcing (throw-like) - use simple throw candidates (deferred preview uses base)
+		// fallback - should have been handled as parabola above, keep for safety
 		bool forced = Options::forceFire && _isCtrlPressed && _save->getSide() == FACTION_PLAYER;
 		targetVoxel = _save->getTileEngine()->getTargetVoxel(effectivePos, forced, tmp.actor);
 	}
@@ -2711,6 +2819,8 @@ void Map::updateLoFCache()
 			_cachedLoFRelativeOrigin = (int)tmp.relativeOrigin;
 			_cachedLoFKneeled = action->actor->isKneeled();
 			_cachedLoFWaypointCount = _waypoints.size();
+			_cachedLoFIsParabola = false;
+			_cachedLoFCurvature = 0.0;
 			return;
 		}
 	}
@@ -2720,6 +2830,8 @@ void Map::updateLoFCache()
 	_cachedLoFHitType = hit;
 	_cachedLoFHitVoxel = Position(-1, -1, -1);
 	_cachedLoFHitFraction = 1.0;
+	_cachedLoFIsParabola = false;
+	_cachedLoFCurvature = 0.0;
 	if (hit != V_EMPTY && !_cachedLoFTrajectory.empty())
 	{
 		Position hitVoxel = _cachedLoFTrajectory.back();
@@ -2820,6 +2932,108 @@ void Map::drawLoFLine(Surface *surface)
 			_lofDotRed->setPixel(1, 1, brightIdx);
 			_lofDotRed->unlock();
 		}
+	}
+	// parabola LOF - draw along actual curved voxel polyline with per-segment Z culling
+	if (_cachedLoFIsParabola && _cachedLoFTrajectory.size() >= 2)
+	{
+		// build screen polyline from full parabola trajectory (no Bresenham stair, actual curve)
+		std::vector<Position> screens;
+		screens.reserve(_cachedLoFTrajectory.size());
+		for (auto &v : _cachedLoFTrajectory)
+		{
+			Position s;
+			_camera->convertVoxelToScreen(v, &s);
+			screens.push_back(s);
+		}
+		// total screen length of parabola
+		double totalLen = 0.0;
+		for (size_t i = 1; i < screens.size(); ++i)
+		{
+			int dxp = screens[i].x - screens[i-1].x;
+			int dyp = screens[i].y - screens[i-1].y;
+			totalLen += std::sqrt((double)dxp*dxp + (double)dyp*dyp);
+		}
+		if (totalLen < 4.0) return;
+		const double spacing = 7.0;
+		int steps = (int)(totalLen / spacing);
+		if (steps < 3) steps = 3;
+		int viewLevel = _camera->getViewLevel();
+		double hitFraction = _cachedLoFHitFraction;
+		if (hitFraction < 0.0) hitFraction = 0.0;
+		if (hitFraction > 1.0) hitFraction = 1.0;
+		for (int i = 2; i < steps - 1; ++i)
+		{
+			double t = (double)i / (double)(steps - 1);
+			double targetDist = t * totalLen;
+			// walk polyline to targetDist
+			double accum = 0.0;
+			Position segStartScreen = screens[0];
+			Position segStartVoxel = _cachedLoFTrajectory[0];
+			int sx = segStartScreen.x;
+			int sy = segStartScreen.y;
+			int vz = segStartVoxel.z;
+			bool foundSeg = false;
+			for (size_t si = 1; si < screens.size(); ++si)
+			{
+				int dxp = screens[si].x - screens[si-1].x;
+				int dyp = screens[si].y - screens[si-1].y;
+				double segLen = std::sqrt((double)dxp*dxp + (double)dyp*dyp);
+				if (segLen < 1e-9)
+				{
+					// degenerate vertical segment - use voxel Z midpoint
+					if (accum >= targetDist - 1e-9)
+					{
+						sx = screens[si-1].x;
+						sy = screens[si-1].y;
+						vz = _cachedLoFTrajectory[si-1].z;
+						foundSeg = true;
+						break;
+					}
+					accum += segLen;
+					continue;
+				}
+				if (accum + segLen >= targetDist - 1e-9)
+				{
+					double segT = (targetDist - accum) / segLen;
+					if (segT < 0.0) segT = 0.0;
+					if (segT > 1.0) segT = 1.0;
+					sx = screens[si-1].x + (int)std::round(dxp * segT);
+					sy = screens[si-1].y + (int)std::round(dyp * segT);
+					// per-segment Z via voxel interpolation (parabola arch aware)
+					vz = _cachedLoFTrajectory[si-1].z + (int)std::round((double)(_cachedLoFTrajectory[si].z - _cachedLoFTrajectory[si-1].z) * segT);
+					foundSeg = true;
+					break;
+				}
+				accum += segLen;
+			}
+			if (!foundSeg)
+			{
+				sx = screens.back().x;
+				sy = screens.back().y;
+				vz = _cachedLoFTrajectory.back().z;
+			}
+			int tileZ = vz / 24;
+			if (tileZ > viewLevel + 1)
+			{
+				continue;
+			}
+			sx -= 1;
+			sy -= 1;
+			if (sx < -2 || sx >= surface->getWidth() || sy < -2 || sy >= surface->getHeight())
+			{
+				continue;
+			}
+			bool beforeHit = (t < hitFraction - 1e-9);
+			if (hitFraction >= 0.999) beforeHit = true;
+			int dotColor = beforeHit ? Pathfinding::green : Pathfinding::red;
+			if (dotColor <= 0) dotColor = beforeHit ? 4 : 3;
+			Surface *srcDot = _lofDotGreen ? _lofDotGreen : _lofDotRed;
+			if (srcDot)
+			{
+				srcDot->blitNShade(surface, sx, sy, 0, false, dotColor);
+			}
+		}
+		return;
 	}
 	// Use cached origin/target voxel for perfectly straight screen line (no Bresenham stair).
 	// Voxel trajectory is still used for block detection; screen interpolation gives visual line.

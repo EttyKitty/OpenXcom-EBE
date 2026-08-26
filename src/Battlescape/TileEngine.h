@@ -204,6 +204,8 @@ public:
 	VoxelType calculateLineVoxel(Position origin, Position target, bool storeTrajectory, std::vector<Position> *trajectory, BattleUnit *excludeUnit, BattleUnit *excludeAllBut = 0, bool onlyVisible = false);
 	/// Calculates a parabola trajectory.
 	int calculateParabolaVoxel(Position origin, Position target, bool storeTrajectory, std::vector<Position> *trajectory, BattleUnit *excludeUnit, double curvature, const Position delta);
+	/// Gets full parabola trajectory without voxel collision (for LOF preview drawing).
+	void getParabolaTrajectory(Position origin, Position target, std::vector<Position> &trajectory, double curvature, const Position delta);
 	/// Gets the origin voxel of a unit's eyesight.
 	Position getSightOriginVoxel(BattleUnit *currentUnit, Tile *tileTarget = nullptr, BattleActionOrigin relOrigin = BattleActionOrigin::CENTRE);
 	/// Checks visibility of a unit on this tile.
@@ -278,6 +280,8 @@ public:
 	bool detonate(Tile* tile, int power);
 	/// Validates a throwing action.
 	bool validateThrow(BattleAction &action, Position originVoxel, Position targetVoxel, int depth, double *curve = 0, int *voxelType = 0, bool forced = false);
+	/// Find valid throw/arcing target voxel and curvature via candidate list + validateThrow - shared by Projectile and Map LOF preview (DRY for honest parabola)
+	bool findThrowTargetAndCurvature(BattleAction &action, Position originVoxel, Position &outTargetVoxel, double &outCurvature, int &outVoxelType, bool forced);
 	/// Opens any doors this door is connected to.
 	std::pair<int, Position> checkAdjacentDoors(Position pos, TilePart part);
 	/// Recalculates FOV of all units in-game.

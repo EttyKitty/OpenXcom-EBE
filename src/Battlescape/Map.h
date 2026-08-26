@@ -105,6 +105,8 @@ private:
 	VoxelType _cachedLoFHitType = V_EMPTY;
 	Position _cachedLoFHitVoxel = Position(-1, -1, -1);
 	double _cachedLoFHitFraction = 1.0;
+	bool _cachedLoFIsParabola = false;
+	double _cachedLoFCurvature = 0.0;
 	Surface *_lofDotGreen = nullptr;
 	Surface *_lofDotRed = nullptr;
 	int _animFrame;
