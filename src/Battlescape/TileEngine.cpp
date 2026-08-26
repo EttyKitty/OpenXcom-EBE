@@ -6513,6 +6513,85 @@ Position TileEngine::getOriginVoxel(BattleAction &action, Tile *tile)
 }
 
 /**
+ * Gets the target voxel(s) for a shooting action - 1:1 with Projectile::calculateTrajectory pre-accuracy.
+ * Forced = forceFire + Ctrl (0,0,12 corner), else unit chest/feet/head, object, walls, floor.
+ * @param targetPos Map position being aimed at.
+ * @param forced True if force-fire (Ctrl) is held.
+ * @param shooter Shooter unit for visibility check (player can only target visible units).
+ * @return first candidate voxel (primary aim point)
+ */
+Position TileEngine::getTargetVoxel(Position targetPos, bool forced, BattleUnit *shooter) const
+{
+	auto cands = getTargetVoxelCandidates(targetPos, forced, shooter);
+	if (!cands.empty())
+		return cands.front();
+	return targetPos.toVoxel() + Position(8, 8, 12);
+}
+
+std::vector<Position> TileEngine::getTargetVoxelCandidates(Position targetPos, bool forced, BattleUnit *shooter) const
+{
+	std::vector<Position> candidates;
+	Tile *targetTile = _save ? _save->getTile(targetPos) : nullptr;
+	if (!targetTile)
+	{
+		candidates.push_back(targetPos.toVoxel() + Position(8, 8, 12));
+		return candidates;
+	}
+	Position base = targetPos.toVoxel() + Position(8, 8, 1 + -targetTile->getTerrainLevel());
+	if (forced)
+	{
+		candidates.push_back(targetPos.toVoxel() + Position(0, 0, 12));
+		return candidates;
+	}
+	BattleUnit *tu = targetTile->getOverlappingUnit(_save);
+	bool considerUnit = tu && (!shooter || shooter->getFaction() != FACTION_PLAYER || tu->getVisible());
+	if (considerUnit)
+	{
+		Position unitBase = base;
+		unitBase.z += tu->getFloatHeight();
+		candidates.push_back(unitBase + Position(0, 0, tu->getHeight() / 2 + 1));
+		candidates.push_back(unitBase + Position(0, 0, 2));
+		candidates.push_back(unitBase + Position(0, 0, tu->getHeight() - 1));
+		return candidates;
+	}
+	if (targetTile->getMapData(O_OBJECT) != 0)
+	{
+		Position b = targetPos.toVoxel() + Position(8, 8, 0);
+		candidates.push_back(b + Position(0, 0, 13));
+		candidates.push_back(b + Position(0, 0, 8));
+		candidates.push_back(b + Position(0, 0, 23));
+		candidates.push_back(b + Position(0, 0, 2));
+		return candidates;
+	}
+	if (targetTile->getMapData(O_NORTHWALL) != 0)
+	{
+		Position b = targetPos.toVoxel() + Position(8, 0, 0);
+		candidates.push_back(b + Position(0, 0, 13));
+		candidates.push_back(b + Position(0, 0, 8));
+		candidates.push_back(b + Position(0, 0, 20));
+		candidates.push_back(b + Position(0, 0, 3));
+		return candidates;
+	}
+	if (targetTile->getMapData(O_WESTWALL) != 0)
+	{
+		Position b = targetPos.toVoxel() + Position(0, 8, 0);
+		candidates.push_back(b + Position(0, 0, 13));
+		candidates.push_back(b + Position(0, 0, 8));
+		candidates.push_back(b + Position(0, 0, 20));
+		candidates.push_back(b + Position(0, 0, 2));
+		return candidates;
+	}
+	if (targetTile->getMapData(O_FLOOR) != 0)
+	{
+		candidates.push_back(base);
+		return candidates;
+	}
+	// no floor/object/wall - aim at tile centre height
+	candidates.push_back(targetPos.toVoxel() + Position(8, 8, 12));
+	return candidates;
+}
+
+/**
  * mark a region of the map as "dangerous" for a turn.
  * @param pos is the epicenter of the explosion.
  * @param radius how far to spread out.

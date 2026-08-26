@@ -509,45 +509,11 @@ int Projectile::calculateThrow(double accuracy)
 	}
 	else
 	{
-		BattleUnit* tu = targetTile->getOverlappingUnit(_save);
-		if (Options::forceFire && _save->isCtrlPressed(true) && _save->getSide() == FACTION_PLAYER)
-		{
-			targets.push_back(_action.target.toVoxel() + Position(0, 0, 12));
-			forced = true;
-		}
-		else if (tu && ((_action.actor->getFaction() != FACTION_PLAYER) ||
-						tu->getVisible()))
-		{                                          // unit
-			targetVoxel.z += tu->getFloatHeight(); // ground level is the base
-			targets.push_back(targetVoxel + Position(0, 0, tu->getHeight() / 2 + 1));
-			targets.push_back(targetVoxel + Position(0, 0, 2));
-			targets.push_back(targetVoxel + Position(0, 0, tu->getHeight() - 1));
-		}
-		else if (targetTile->getMapData(O_OBJECT) != 0)
-		{
-			targetVoxel = _action.target.toVoxel() + Position(8, 8, 0);
-			targets.push_back(targetVoxel + Position(0, 0, 13));
-			targets.push_back(targetVoxel + Position(0, 0, 8));
-			targets.push_back(targetVoxel + Position(0, 0, 23));
-			targets.push_back(targetVoxel + Position(0, 0, 2));
-		}
-		else if (targetTile->getMapData(O_NORTHWALL) != 0)
-		{
-			targetVoxel = _action.target.toVoxel() + Position(8, 0, 0);
-			targets.push_back(targetVoxel + Position(0, 0, 13));
-			targets.push_back(targetVoxel + Position(0, 0, 8));
-			targets.push_back(targetVoxel + Position(0, 0, 20));
-			targets.push_back(targetVoxel + Position(0, 0, 3));
-		}
-		else if (targetTile->getMapData(O_WESTWALL) != 0)
-		{
-			targetVoxel = _action.target.toVoxel() + Position(0, 8, 0);
-			targets.push_back(targetVoxel + Position(0, 0, 13));
-			targets.push_back(targetVoxel + Position(0, 0, 8));
-			targets.push_back(targetVoxel + Position(0, 0, 20));
-			targets.push_back(targetVoxel + Position(0, 0, 2));
-		}
-		else if (targetTile->getMapData(O_FLOOR) != 0)
+		bool isForced = Options::forceFire && _save->isCtrlPressed(true) && _save->getSide() == FACTION_PLAYER;
+		forced = isForced;
+		targets = _save->getTileEngine()->getTargetVoxelCandidates(_action.target, isForced, _action.actor);
+		// fallback if helper returned empty (no floor etc.) - keep at least one
+		if (targets.empty())
 		{
 			targets.push_back(targetVoxel);
 		}

@@ -288,6 +288,10 @@ public:
 	int getArcDirection(int directionA, int directionB) const;
 	/// determine the origin voxel of a given action.
 	Position getOriginVoxel(BattleAction &action, Tile *tile);
+	/// determine the target voxel (first candidate) for a shooting action - 1:1 with Projectile::calculateTrajectory
+	Position getTargetVoxel(Position targetPos, bool forced, BattleUnit *shooter = nullptr) const;
+	/// all target voxel candidates in priority order (unit chest/feet/head, object, walls, floor) - DRY helper
+	std::vector<Position> getTargetVoxelCandidates(Position targetPos, bool forced, BattleUnit *shooter = nullptr) const;
 	/// mark a region of the map as "dangerous" for a turn.
 	void setDangerZone(Position pos, int radius, BattleUnit *unit);
 	/// Checks if a position is valid for a unit, used for spawning and forced movement.

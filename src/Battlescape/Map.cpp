@@ -2665,8 +2665,8 @@ void Map::updateLoFCache()
 	BattleAction tmp = *action;
 	tmp.target = selPos;
 	Position originVoxel = _save->getTileEngine()->getOriginVoxel(tmp, originTile);
-	// TODO: tile-center fallback; refine by scanning per-tile wall/object via canTargetTile for wall-aim accuracy
-	Position targetVoxel = selPos.toVoxel() + Position(8, 8, 12);
+	bool forced = Options::forceFire && _isCtrlPressed && _save->getSide() == FACTION_PLAYER;
+	Position targetVoxel = _save->getTileEngine()->getTargetVoxel(selPos, forced, action->actor);
 	_cachedLoFTrajectory.clear();
 	_save->getTileEngine()->calculateLineVoxel(originVoxel, targetVoxel, true, &_cachedLoFTrajectory, action->actor);
 	_cachedLoFTarget = selPos;
