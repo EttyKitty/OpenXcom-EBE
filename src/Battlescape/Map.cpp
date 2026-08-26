@@ -2664,9 +2664,30 @@ void Map::updateLoFCache()
 	}
 	BattleAction tmp = *action;
 	tmp.target = selPos;
+	tmp.waypoints = _waypoints;
+	Position targetVoxel;
+	if (tmp.weapon && tmp.weapon->getArcingShot(tmp.type))
+	{
+		// arcing (throw-like) - use simple throw candidates (deferred preview uses base)
+		bool forced = Options::forceFire && _isCtrlPressed && _save->getSide() == FACTION_PLAYER;
+		targetVoxel = _save->getTileEngine()->getTargetVoxel(selPos, forced, tmp.actor);
+	}
+	else
+	{
+		targetVoxel = _save->getTileEngine()->getAimedShotTargetVoxel(tmp);
+		if (targetVoxel == TileEngine::invalid || targetVoxel == TileEngine::invalid.toVoxel())
+		{
+			_cachedLoFTrajectory.clear();
+			_cachedLoFTarget = selPos;
+			_cachedLoFActor = action->actor;
+			_cachedLoFActionType = (int)action->type;
+			_cachedLoFRelativeOrigin = (int)tmp.relativeOrigin;
+			_cachedLoFKneeled = action->actor->isKneeled();
+			_cachedLoFWaypointCount = _waypoints.size();
+			return;
+		}
+	}
 	Position originVoxel = _save->getTileEngine()->getOriginVoxel(tmp, originTile);
-	bool forced = Options::forceFire && _isCtrlPressed && _save->getSide() == FACTION_PLAYER;
-	Position targetVoxel = _save->getTileEngine()->getTargetVoxel(selPos, forced, action->actor);
 	_cachedLoFTrajectory.clear();
 	_save->getTileEngine()->calculateLineVoxel(originVoxel, targetVoxel, true, &_cachedLoFTrajectory, action->actor);
 	_cachedLoFTarget = selPos;

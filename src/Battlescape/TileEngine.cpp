@@ -6592,6 +6592,146 @@ std::vector<Position> TileEngine::getTargetVoxelCandidates(Position targetPos, b
 }
 
 /**
+ * Single source of truth for aimed-shot target voxel - mirrors ProjectileFlyBState::init.
+ * Handles forced/launch center, arcing base, unit exposure (realistic/classic + off-centre), and wall/object via adjustTargetVoxelFromTileType.
+ * Mutates action.relativeOrigin to the best origin as init does.
+ */
+Position TileEngine::getAimedShotTargetVoxel(BattleAction &action)
+{
+	if (!_save || !action.actor)
+	{
+		return TileEngine::invalid.toVoxel();
+	}
+	Tile *targetTile = _save->getTile(action.target);
+	if (!targetTile)
+	{
+		return TileEngine::invalid.toVoxel();
+	}
+	BattleUnit *shooter = action.actor;
+	bool isPlayer = _save->getSide() == FACTION_PLAYER;
+	bool forceCenter = (action.type == BA_LAUNCH)
+		|| (Options::forceFire && _save->isCtrlPressed(true) && isPlayer)
+		|| (_save->getBattleGame() && !_save->getBattleGame()->getPanicHandled());
+	if (forceCenter)
+	{
+		Position v = action.target.toVoxel() + voxelTileCenter;
+		if (action.type == BA_LAUNCH)
+		{
+			v.z += 4;
+		}
+		return v;
+	}
+	if (action.weapon && action.weapon->getArcingShot(action.type))
+	{
+		return action.target.toVoxel() + Position(8, 8, 1 + -targetTile->getTerrainLevel());
+	}
+	BattleUnit *targetUnit = targetTile->getUnit();
+	if (!targetUnit)
+	{
+		targetUnit = targetTile->getOverlappingUnit(_save);
+	}
+	bool isUnitTarget = targetUnit && ((shooter->getFaction() != FACTION_PLAYER) || targetUnit->getVisible());
+	if (isUnitTarget)
+	{
+		if (shooter->getPosition() == action.target || targetUnit == shooter)
+		{
+			return action.target.toVoxel() + Position(8, 8, 0);
+		}
+		Tile *originTile = nullptr;
+		if (action.type == BA_LAUNCH && !action.waypoints.empty())
+		{
+			originTile = _save->getTile(action.waypoints.back());
+		}
+		else
+		{
+			originTile = _save->getTile(shooter->getPosition());
+		}
+		Position originVoxel = getOriginVoxel(action, originTile);
+		bool found = false;
+		Position bestPos = TileEngine::invalid;
+		BattleActionOrigin bestOrigin = BattleActionOrigin::CENTRE;
+		size_t bestCount = 0;
+		std::vector<Position> exposed;
+		if (Options::battleRealisticAccuracy)
+		{
+			checkVoxelExposure(&originVoxel, targetTile, shooter, isPlayer, &exposed, nullptr, !isPlayer);
+			if (!exposed.empty())
+			{
+				found = true;
+				bestCount = exposed.size();
+				bestPos = exposed[0];
+				bestOrigin = BattleActionOrigin::CENTRE;
+			}
+			if (Options::oxceEnableOffCentreShooting)
+			{
+				for (auto rel : { BattleActionOrigin::LEFT, BattleActionOrigin::RIGHT })
+				{
+					BattleAction tmp = action;
+					tmp.relativeOrigin = rel;
+					Position o2 = getOriginVoxel(tmp, originTile);
+					exposed.clear();
+					checkVoxelExposure(&o2, targetTile, shooter, isPlayer, &exposed, nullptr, !isPlayer);
+					if (exposed.size() > bestCount)
+					{
+						found = true;
+						bestCount = exposed.size();
+						bestPos = exposed[0];
+						bestOrigin = rel;
+						originVoxel = o2;
+					}
+				}
+				action.relativeOrigin = bestOrigin;
+			}
+			if (found)
+			{
+				return bestPos;
+			}
+		}
+		else
+		{
+			Position scan;
+			found = canTargetUnit(&originVoxel, targetTile, &scan, shooter, isPlayer);
+			if (found)
+			{
+				action.relativeOrigin = BattleActionOrigin::CENTRE;
+				return scan;
+			}
+			if (Options::oxceEnableOffCentreShooting)
+			{
+				for (auto rel : { BattleActionOrigin::LEFT, BattleActionOrigin::RIGHT })
+				{
+					BattleAction tmp = action;
+					tmp.relativeOrigin = rel;
+					Position o2 = getOriginVoxel(tmp, originTile);
+					Position s2;
+					if (canTargetUnit(&o2, targetTile, &s2, shooter, isPlayer))
+					{
+						action.relativeOrigin = rel;
+						return s2;
+					}
+				}
+			}
+			action.relativeOrigin = BattleActionOrigin::CENTRE;
+		}
+		return TileEngine::invalid.toVoxel();
+	}
+	else
+	{
+		Tile *originTile = nullptr;
+		if (action.type == BA_LAUNCH && !action.waypoints.empty())
+		{
+			originTile = _save->getTile(action.waypoints.back());
+		}
+		else
+		{
+			originTile = _save->getTile(shooter->getPosition());
+		}
+		Position originVoxel = getOriginVoxel(action, originTile);
+		return adjustTargetVoxelFromTileType(&originVoxel, targetTile, shooter, isPlayer);
+	}
+}
+
+/**
  * mark a region of the map as "dangerous" for a turn.
  * @param pos is the epicenter of the explosion.
  * @param radius how far to spread out.

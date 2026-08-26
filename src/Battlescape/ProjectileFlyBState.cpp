@@ -309,101 +309,15 @@ void ProjectileFlyBState::init()
 	}
 	else if (!_action.weapon->getArcingShot(_action.type))
 	{
-		// determine the target voxel.
-		// aim at the center of the unit, the object, the walls or the floor (in that priority)
-		// if there is no LOF to the center, try elsewhere (more outward).
-		// Store this target voxel.
-		Tile *targetTile = _parent->getSave()->getTile(_action.target);
-		Position originVoxel = _parent->getTileEngine()->getOriginVoxel(_action, _parent->getSave()->getTile(_origin));
-		bool foundLoF = false;
-        bool selfShot = false;
-
-		if (targetTile->getUnit() &&
-			((_unit->getFaction() != FACTION_PLAYER) ||
-			targetTile->getUnit()->getVisible()))
+		_targetVoxel = _parent->getTileEngine()->getAimedShotTargetVoxel(_action);
+		if (_targetVoxel == TileEngine::invalid.toVoxel() || _targetVoxel == TileEngine::invalid)
 		{
-			if (_origin == _action.target || targetTile->getUnit() == _unit)
+			_action.relativeOrigin = BattleActionOrigin::CENTRE;
+			_targetVoxel = TileEngine::invalid.toVoxel();
+			if (isPlayer)
 			{
-				// don't shoot at yourself but shoot at the floor
-				_targetVoxel = _action.target.toVoxel() + Position(8, 8, 0);
-                selfShot = true;
+				forceEnableObstacles = true;
 			}
-			else if (Options::battleRealisticAccuracy)
-			{
-				std::vector<Position> exposedVoxels;
-				OpenXcom::BattleActionOrigin bestOriginType;
-				Position bestTargetPos;
-				size_t bestExposedCount = 0;
-
-				_parent->getTileEngine()->checkVoxelExposure(&originVoxel, targetTile, _unit, isPlayer, &exposedVoxels, nullptr, !isPlayer);
-
-				if (!exposedVoxels.empty())
-				{
-					foundLoF = true;
-					bestExposedCount = exposedVoxels.size();
-					bestOriginType = BattleActionOrigin::CENTRE;
-					bestTargetPos = exposedVoxels.at(0);
-				}
-
-				if (Options::oxceEnableOffCentreShooting) // Determine which shooting position is the best
-				{
-					for (auto& rel_pos : { BattleActionOrigin::LEFT, BattleActionOrigin::RIGHT })
-					{
-						exposedVoxels.clear();
-						_action.relativeOrigin = rel_pos;
-						originVoxel = _parent->getTileEngine()->getOriginVoxel(_action, _parent->getSave()->getTile(_origin));
-						_parent->getTileEngine()->checkVoxelExposure(&originVoxel, targetTile, _unit, isPlayer, &exposedVoxels, nullptr, !isPlayer);
-
-						if (exposedVoxels.size() <=  bestExposedCount) continue;
-
-						foundLoF = true;
-						bestExposedCount = exposedVoxels.size();
-						bestOriginType = rel_pos;
-						bestTargetPos = exposedVoxels.at(0);
-					}
-				}
-
-				if (foundLoF) // Store the results
-				{
-					_targetVoxel = bestTargetPos;
-					_action.relativeOrigin = bestOriginType;
-				}
-			}
-			else // Classic Accuracy
-			{
-				foundLoF = _parent->getTileEngine()->canTargetUnit(&originVoxel, targetTile, &_targetVoxel, _unit, isPlayer);
-
-				if (!foundLoF && Options::oxceEnableOffCentreShooting)
-				{
-					// If we can't target from the standard shooting position, try a bit left and right from the centre.
-					for (auto& rel_pos : { BattleActionOrigin::LEFT, BattleActionOrigin::RIGHT })
-					{
-						_action.relativeOrigin = rel_pos;
-						originVoxel = _parent->getTileEngine()->getOriginVoxel(_action, _parent->getSave()->getTile(_origin));
-						foundLoF = _parent->getTileEngine()->canTargetUnit(&originVoxel, targetTile, &_targetVoxel, _unit, isPlayer);
-						if (foundLoF)
-						{
-							break;
-						}
-					}
-				}
-			}
-
-            if (!foundLoF && !selfShot)
-			{
-				// Failed to find LOF
-				_action.relativeOrigin = BattleActionOrigin::CENTRE; // reset to the normal origin
-
-				_targetVoxel = TileEngine::invalid.toVoxel(); // out of bounds, even after voxel to tile calculation.
-				if (isPlayer)
-				{
-					forceEnableObstacles = true;
-				}
-			}
-		}
-		else
-		{
-			_targetVoxel = _parent->getTileEngine()->adjustTargetVoxelFromTileType(&originVoxel, targetTile, _unit, isPlayer);
 		}
 	}
 
