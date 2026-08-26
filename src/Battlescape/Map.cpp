@@ -17,6 +17,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Map.h"
+#include <cmath>
 #include "Camera.h"
 #include "UnitSprite.h"
 #include "ItemSprite.h"
@@ -105,7 +106,7 @@ namespace OpenXcom
  * @param visibleMapHeight Current visible map height.
  */
 Map::Map(Game *game, int width, int height, int x, int y, int visibleMapHeight) : InteractiveSurface(width, height, x, y),
-	_game(game), _isTFTD(false), _arrow(0), _anyIndicator(false), _isAltPressed(false), _isCtrlPressed(false),
+	_game(game), _isTFTD(false), _arrow(0), _lofDot(0), _anyIndicator(false), _isAltPressed(false), _isCtrlPressed(false),
 	_selectorX(0), _selectorY(0), _mouseX(0), _mouseY(0), _cursorType(CT_NORMAL), _cursorSize(1), _animFrame(0),
 	_projectile(0), _followProjectile(true), _projectileInFOV(false), _explosionInFOV(false), _launch(false), _visibleMapHeight(visibleMapHeight),
 	_unitDying(false), _smoothingEngaged(false), _flashScreen(false), _bgColor(15), _projectileSet(0), _showObstacles(false), _showInfoOnCursor(false)
@@ -251,6 +252,7 @@ Map::~Map()
 	delete _fadeTimer;
 	delete _obstacleTimer;
 	delete _arrow;
+	delete _lofDot;
 	delete _message;
 	delete _camera;
 	delete _txtAccuracy;
@@ -395,6 +397,10 @@ void Map::setPalette(const SDL_Color *colors, int firstcolor, int ncolors)
 		mds->getSurfaceset()->setPalette(colors, firstcolor, ncolors);
 	}
 	_message->setPalette(colors, firstcolor, ncolors);
+	if (_lofDot)
+	{
+		_lofDot->setPalette(colors, firstcolor, ncolors);
+	}
 	refreshHiddenMovementBackground();
 	_message->initText(_game->getMod()->getFont("FONT_BIG"), _game->getMod()->getFont("FONT_SMALL"), _game->getLanguage());
 	_message->setText(_game->getLanguage()->getString("STR_HIDDEN_MOVEMENT"), _game->getLanguage()->getString("STR_THINKING"));
@@ -750,6 +756,7 @@ void Map::drawTerrain(Surface *surface)
 
 	_isAltPressed = _game->isAltPressed(true);
 	_isCtrlPressed = _game->isCtrlPressed(true);
+	updateLoFCache();
 	int frameNumber = 0;
 	SurfaceRaw<const Uint8> tmpSurface;
 	Tile *tile;
@@ -997,7 +1004,7 @@ void Map::drawTerrain(Surface *surface)
 							tileShade = 16;
 							obstacleShade = 16;
 						}
-					} 
+					}
 					tileColor = tile->getMarkerColor();
 
 					// Draw floor
@@ -1879,6 +1886,9 @@ void Map::drawTerrain(Surface *surface)
 		}
 	}
 	_nvColor = colorBeforeFoW;
+	// LoF preview: over terrain, under cursor.
+	// TODO: currently screen-space overlay after first loop so it sits over cursor front; future refine to per-tile draw before cursor front within loop to be strictly under cursor.
+	drawLoFLine(surface);
 	if (pathfinderTurnedOn)
 	{
 		if (_numWaypid)
@@ -2574,6 +2584,7 @@ void Map::setCursorType(CursorType type, int size)
 	_cacheIsCtrlPressed = false;
 	_cacheCursorPosition = TileEngine::invalid;
 	_cacheHasLOS = -1;
+	_cachedLoFTrajectory.clear();
 
 	_cursorType = type;
 	if (_cursorType == CT_NORMAL)
@@ -2589,6 +2600,156 @@ void Map::setCursorType(CursorType type, int size)
 CursorType Map::getCursorType() const
 {
 	return _cursorType;
+}
+
+void Map::updateLoFCache()
+{
+	if (!Options::oxceShowLoFLine)
+	{
+		_cachedLoFTrajectory.clear();
+		return;
+	}
+	if (_cursorType != CT_AIM)
+	{
+		_cachedLoFTrajectory.clear();
+		return;
+	}
+	if (!_save)
+	{
+		_cachedLoFTrajectory.clear();
+		return;
+	}
+	BattleAction *action = _save->getBattleGame()->getCurrentAction();
+	if (!action || !action->targeting || !action->actor)
+	{
+		_cachedLoFTrajectory.clear();
+		return;
+	}
+	// TODO: BA_THROW currently deferred - show no line for throws; later implement parabola via calculateParabolaVoxel
+	if (action->type == BA_THROW)
+	{
+		_cachedLoFTrajectory.clear();
+		return;
+	}
+	Position selPos;
+	getSelectorPosition(&selPos);
+	bool sameTarget = selPos == _cachedLoFTarget;
+	bool sameActor = action->actor == _cachedLoFActor;
+	bool sameType = (int)action->type == _cachedLoFActionType;
+	bool sameOrigin = (int)action->relativeOrigin == _cachedLoFRelativeOrigin;
+	bool sameKneeled = action->actor->isKneeled() == _cachedLoFKneeled;
+	bool sameWaypoints = _waypoints.size() == _cachedLoFWaypointCount;
+	if (sameTarget && sameActor && sameType && sameOrigin && sameKneeled && sameWaypoints && !_cachedLoFTrajectory.empty())
+	{
+		return;
+	}
+	Tile *originTile = nullptr;
+	if (!_waypoints.empty() && (action->type == BA_LAUNCH || action->sprayTargeting))
+	{
+		Position lastWp = _waypoints.back();
+		originTile = _save->getTile(lastWp);
+		if (!originTile)
+		{
+			originTile = action->actor->getTile();
+		}
+	}
+	else
+	{
+		originTile = action->actor->getTile();
+	}
+	if (!originTile)
+	{
+		_cachedLoFTrajectory.clear();
+		return;
+	}
+	BattleAction tmp = *action;
+	tmp.target = selPos;
+	Position originVoxel = _save->getTileEngine()->getOriginVoxel(tmp, originTile);
+	// TODO: tile-center fallback; refine by scanning per-tile wall/object via canTargetTile for wall-aim accuracy
+	Position targetVoxel = selPos.toVoxel() + Position(8, 8, 12);
+	_cachedLoFTrajectory.clear();
+	_save->getTileEngine()->calculateLineVoxel(originVoxel, targetVoxel, true, &_cachedLoFTrajectory, action->actor);
+	_cachedLoFTarget = selPos;
+	_cachedLoFOriginVoxel = originVoxel;
+	_cachedLoFTargetVoxel = targetVoxel;
+	_cachedLoFActor = action->actor;
+	_cachedLoFActionType = (int)action->type;
+	_cachedLoFRelativeOrigin = (int)action->relativeOrigin;
+	_cachedLoFKneeled = action->actor->isKneeled();
+	_cachedLoFWaypointCount = _waypoints.size();
+}
+
+void Map::drawLoFLine(Surface *surface)
+{
+	if (_cachedLoFTrajectory.empty())
+	{
+		return;
+	}
+	if (!_lofDot)
+	{
+		_lofDot = new Surface(2, 2);
+		_lofDot->setPalette(getPalette());
+		_lofDot->lock();
+		int col = Palette::blockOffset(1);
+		_lofDot->setPixel(0, 0, (Uint8)col);
+		_lofDot->setPixel(1, 0, (Uint8)col);
+		_lofDot->setPixel(0, 1, (Uint8)col);
+		_lofDot->setPixel(1, 1, (Uint8)col);
+		_lofDot->unlock();
+	}
+	// Use cached origin/target voxel for perfectly straight screen line (no Bresenham stair).
+	// This fixes jagged dancing dots while still using voxel trajectory for block detection (TODO green/red split).
+	Position originVoxel = _cachedLoFOriginVoxel;
+	Position targetVoxel = _cachedLoFTargetVoxel;
+	if (originVoxel == Position(-1, -1, -1) || targetVoxel == Position(-1, -1, -1))
+	{
+		if (_cachedLoFTrajectory.size() < 2)
+		{
+			return;
+		}
+		originVoxel = _cachedLoFTrajectory.front();
+		targetVoxel = _cachedLoFTrajectory.back();
+	}
+	Position originScreen, targetScreen;
+	_camera->convertVoxelToScreen(originVoxel, &originScreen);
+	_camera->convertVoxelToScreen(targetVoxel, &targetScreen);
+	// convertVoxelToScreen already includes mapOffset, do NOT add camOff again.
+	int dx = targetScreen.x - originScreen.x;
+	int dy = targetScreen.y - originScreen.y;
+	double dist = std::sqrt((double)dx * dx + (double)dy * dy);
+	if (dist < 4.0)
+	{
+		return;
+	}
+	const double spacing = 7.0; // sparse dots, matches Q7
+	int steps = (int)(dist / spacing);
+	if (steps < 3)
+	{
+		steps = 3;
+	}
+	int viewLevel = _camera->getViewLevel();
+	// skip dots near shooter and near target cursor (over terrain, under cursor - Q8)
+	for (int i = 2; i < steps - 1; ++i)
+	{
+		double t = (double)i / (double)(steps - 1);
+		int sx = originScreen.x + (int)std::round(dx * t);
+		int sy = originScreen.y + (int)std::round(dy * t);
+		// view-level culling via interpolated voxel Z
+		int vz = originVoxel.z + (int)((targetVoxel.z - originVoxel.z) * t);
+		int tileZ = vz / 24;
+		if (tileZ > viewLevel + 1)
+		{
+			continue;
+		}
+		// TODO: green/red split - choose color based on whether t is beyond hit fraction (requires hit index)
+		sx -= 1;
+		sy -= 1;
+		if (sx < -2 || sx >= surface->getWidth() || sy < -2 || sy >= surface->getHeight())
+		{
+			continue;
+		}
+		_lofDot->blitNShade(surface, sx, sy, 0);
+	}
 }
 
 /**

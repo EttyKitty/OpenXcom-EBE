@@ -112,6 +112,7 @@ OPT int oxceAutoNightVisionThreshold;
 OPT int oxceFOW;
 OPT int oxceFOWColor;
 OPT int oxceShowAccuracyOnCrosshair;
+OPT bool oxceShowLoFLine;
 OPT int oxceReactionFireThreshold;
 OPT bool oxceAutoSell;
 OPT bool oxceAutomaticPromotions;
