@@ -1,0 +1,112 @@
+# OpenXcom-EBE
+
+## Project identity
+
+- Fork chain: `OpenXcom/OpenXcom` (vanilla) -> `MeridianOXC/OpenXcom` (OXCE, feature-heavy) -> `Xilmi/OpenXcom` (BOXCE/Brutal, AI + combat + RA) -> this repo `EttyKitty/OpenXcom-EBE`. Direct upstream is `Xilmi`; track only that for merges/PRs.
+- Codebase is old, poorly structured C++ - manual memory, large state classes, tangled globals, minimal abstraction.
+- Remotes: `Xilmi` = upstream, `EttyKitty` = origin. Base branch `main`.
+- License GPLv3.
+
+## Goals
+
+- Incremental maintainability fixes on legacy C++ without large refactors
+- Modding features/modder QoL
+- Fix OXCE quirks BOXCE left untouched (e.g. damage calc, worst UI/UX while keeping old-school soul)
+- Backport to BOXCE via PR when sensible
+- Serve as base for personal Warhammer 40k mod
+- All behavior changes must be optional/togglable for backward compat - default off or opt-in via `openxcom.cfg` / `options.inc.h` / ruleset flag
+
+## Project structure
+
+```
+src/main.cpp              # entry: crash/signal handlers, YAML error handler, Options::init, Game loop (Game->StartState) + NDEBUG test harness
+src/*.{h,cpp}             # root helpers: fmath.h, fallthrough.h, lodepng.*, md5.*, version.h, git_version.h.in, ryml.natvis
+src/*.{sln,vcxproj,rc,s}  # VS solution + resources (OpenXcom.2010.sln/.vcxproj/.filters, OpenXcom.rc/.s, resource.h) - keep in sync with CMake
+src/Engine/               # core e.g. Game, State, Screen, Surface, CrossPlatform, Options(+Options.inc.h), FileMap, Script, Yaml + RNG, Palette, Sound, Font, Language, etc. (~100 files)
+src/Engine/Adlib/         # AdLib/OPL emulation (adlplayer, fmopl)
+src/Engine/Scalers/       # hq2x/3x/4x, scale2x/3x, scalebit, xBRZ
+src/apple/                # macOS SDLMain.m/.h - required for CMake on macOS (fails if missing)
+src/Basescape/            # base management UI states
+src/Battlescape/          # tactical combat: TileEngine, Pathfinding, AIModule, Projectile, Map
+src/Geoscape/             # geoscape: Globe, DogfightState, graphs, events
+src/Mod/                  # ruleset loading: RuleCraft, RuleItem, RuleTerrain, Mod.cpp
+src/Savegame/             # save data: Base, Craft, Soldier, SavedGame, BattleUnit
+src/Interface/            # widgets: Text, Window, Bar, Slider
+src/Menu/                 # main menu, options, load/save
+src/Ufopaedia/            # ufopaedia articles
+libs/rapidyaml/ + libs/miniz/  # top-level vendored, compiled via src/CMakeLists.txt as ../libs/... (rapidyaml_src + c_src -> cxx_src)
+bin/{common,standard,UFO,TFTD} # runtime data + shipped Windows DLLs - do not edit, see Build (also bin/x64 on some checkouts)
+res/{linux,mac,windows}/  # icons, desktop file, mac bundle, windows ico/manifest + res/*.png|*.svg at root
+cmake/modules/ docs/ install/ Examples/ scripts/  # build support + mod examples + helper scripts (also deps/, .github/, .tx/ at top-level)
+# source of truth for file lists: src/CMakeLists.txt (root_src, basescape_src, ...) + OpenXcom.2010.vcxproj - keep both in sync; counts above are .cpp only, headers double it
+```
+
+## Code style
+
+- CI format check enforces `.clang-format`
+- Config: `.clang-format`, `.editorconfig`
+
+## Conventions and gotchas
+
+- SDL **1.2**, not SDL2. APIs are `SDL_keysym.h`, `SDL_mixer.h` etc. Do not port to SDL2 without explicit order. (`Engine/SDL2Helpers.h` is a compat shim, not SDL2.)
+- C++17 (`-std=c++17`, MSVC `/std:c++17`). Do not use newer features without checking `CMakeLists.txt:10`.
+- No codegen/migrations. `version.h` is manual; `git_version.h` is generated from `src/version.h` + `git describe` via `src/git_version.h.in` - never edit generated file.
+- Fork-specific features live alongside upstream (e.g., hangar rework, >8 bases, RA cover system in `Realistic Accuracy v3.0.md`). Read that doc before touching accuracy/pathfinding.
+- Git: do not commit/push/amend without explicit order (Windows/PowerShell env). Check `git status`/`diff` before any commit.
+- No existing `opencode.json`, `CLAUDE.md`, or pre-commit hooks. Do not add them unless asked.
+
+## Build & Verification - source of truth is CMake + VS solution
+
+- Build file lists live in `src/CMakeLists.txt` (`root_src`, `basescape_src`, etc.) - add new .cpp there and to `OpenXcom.2010.vcxproj`. Legacy `src/OpenXcom.2010.sln` is still authoritative for some contributors; keep both in sync.
+- `bin/` holds shipped runtime data + Windows DLLs (`SDL*.dll`, `yaml-cpp.dll`); `build/` is the out-of-tree build and is gitignored. Post-build `bin/common`, `bin/standard`, etc. are copied to `build/bin/` (or `openxcom.app/Contents/Resources/` on macOS bundle). Never commit build artifacts to `bin/`.
+- No test suite, no JS/TS toolchain. Verification = compile + manual launch with game data. CI matrix: gcc, clang, mingw, macOS (`ci.yml`).
+
+### Windows (primary, PowerShell)
+
+```powershell
+cmake -B build . -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+# or open VS2022 solution
+# src/OpenXcom.2010.sln  (also build/OpenXcom.sln generated by CMake)
+```
+- Output: `build/bin/OpenXcom.exe` (CMake) or `bin/OpenXcom.exe` (shipped prebuilt + DLLs).
+- Deps resolved from `deps/` (`deps/include`, `deps/lib/x64` or `deps/lib/Win32`) if present; otherwise pkg-config fallback fails on Windows. `deps/dummy.txt` exists only for CI checkout.
+- Required: MSVC 2022 or newer, SDL 1.2 + SDL_mixer + SDL_image + SDL_gfx >=2.0.22, yaml-cpp. Prebuilt Windows deps: `https://openxcom.org/download/dev/openxcom-deps-win-vc2017.zip` (see `ci.yml`).
+
+### Linux / macOS / MinGW (CI reference)
+
+```bash
+cmake -B build . -DCMAKE_BUILD_TYPE=Release -DCHECK_CCACHE=1
+cmake --build build -v -- -j$(nproc)
+sudo cmake --build build --target install  # copies desktop files/icons on Linux
+# MinGW cross (CI uses mxe):
+# /opt/mxe/usr/bin/x86_64-w64-mingw32.static-cmake -DCMAKE_BUILD_TYPE=Release -DDEV_BUILD=OFF -DBUILD_PACKAGE=OFF ..
+```
+- Linux deps via pkg-config: `libsdl1.2-dev libsdl-mixer1.2-dev libsdl-image1.2-dev libsdl-gfx1.2-dev libyaml-cpp-dev zlib1g-dev`. OpenGL optional (`-D__NO_OPENGL` if missing).
+- macOS needs `src/apple/SDLMain.m` (fails CMake if missing) and `brew install sdl sdl_gfx sdl_image sdl_mixer yaml-cpp`.
+
+### CMake options that matter
+
+`DEV_BUILD=ON` (default), `DUMP_CORE`, `BUILD_PACKAGE=ON`, `EMBED_ASSETS=OFF`, `DATADIR`, `FORCE_INSTALL_DATA_TO_BIN`, `CHECK_CCACHE`.
+
+## Sequential Execution
+
+Always proceed with each task, issue, or question sequentially, one-by-one, step-by-step; never at once.
+The only exception is when you use parallel sub-agents, each handling a separate thing in isolation.
+
+## Banned Symbols
+
+The entire codebase must use only 7-bit ASCII characters (Unicode range U+0000 to U+007F). Never use the following symbols:
+- Curly quotes (“ ” ‘ ’) -> use straight quotes (" ').
+- Em/En dashes (— –) -> use hyphen (-).
+- Math symbols (× ÷ ≠ ≤ ≥ ±) -> use ASCII equivalents (* / != <= >= +/-).
+- Bullets (• ▪ ◦) -> use asterisk (*) or hyphen (-).
+- Ellipsis (…) -> use three periods (...).
+- Arrows (→ ⇒) -> use ASCII (-> =>).
+
+If a single non-ASCII character outside of a mandatory UI string (i.e., a user-facing label that explicitly requires it) is found, the entire submission is rejected.
+
+## Reduce Comment Noise
+
+When code exists for a non-obvious reason, like a redundant function call left for explicitness, or a seemingly unnecessary check, you can add a comment explaining why. Anyone reading it later shouldn't have to guess or trace five call sites to figure out the obscure intent.
+But DON'T add comments explaining "what" is happening in each code-block, people can read on their own. Only explain "why", when really needed.

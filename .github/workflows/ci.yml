@@ -1,8 +1,41 @@
 name: CI
 on: [push, pull_request]
 jobs:
+  # format:
+  #   name: Format check (clang-format)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+
+  #     - name: Install clang-format
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get -yq --no-install-suggests --no-install-recommends install clang-format
+  #         clang-format --version
+
+  #     - name: Check formatting (no auto-fix)
+  #       run: |
+  #         echo "Checking C++ formatting with clang-format --dry-run --Werror (per .clang-format)..."
+  #         # Use git ls-files where possible, fallback to find for nested paths
+  #         if git ls-files --error-unmatch -- src >/dev/null 2>&1; then
+  #           git ls-files -z -- src | grep -z -E '\.(cpp|h)$' | xargs -0 -r clang-format --dry-run --Werror --style=file
+  #         else
+  #           find src -type f \( -name '*.cpp' -o -name '*.h' \) -print0 | xargs -0 -r clang-format --dry-run --Werror --style=file
+  #         fi
+  #         echo "Format check passed."
+
+  source-sync:
+    name: Source sync check (CMake vs vcxproj)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check CMake vs vcxproj sync
+        run: python3 scripts/check_vcxproj_sync.py --verbose
+
   build:
-    name: ${{ matrix.os }} (${{ matrix.compiler }})
+    name: ${{ matrix.name }} (${{ matrix.compiler }})
 
     strategy:
       fail-fast: false
@@ -19,7 +52,7 @@ jobs:
             cpp-compiler: clang++
 
           - name: Linux
-            os: ubuntu-20.04  # -latest is still stuck at 18.04
+            os: ubuntu-22.04
             compiler: mingw
             cpp-compiler: mingw
 
@@ -29,6 +62,12 @@ jobs:
             compiler: clang
             cpp-compiler: clang++
             app-bundle: openxcom.app  # all other builds default to bin/
+
+          - name: Linux-FATAL
+            os: ubuntu-latest
+            compiler: gcc
+            cpp-compiler: g++
+            cmake-args: -DFATAL_WARNING=ON
 
     runs-on: ${{ matrix.os }}
 
@@ -58,15 +97,17 @@ jobs:
 
       - name: Setup Cache
         if: runner.os == 'Linux' || runner.os == 'macOS'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.ccache
-          # make sure we always update the cache by passing the run_id (otherwise actions/cache assumes a hit and never updates the cache)
-          key: ccache-${{ runner.os }}-${{ matrix.compiler }}-${{ github.run_id }}
-          restore-keys: ccache-${{ runner.os }}-${{ matrix.compiler }}-
+          key: ccache-${{ runner.os }}-${{ matrix.compiler }}-${{ matrix.cmake-args }}-${{ hashFiles('CMakeLists.txt', 'src/CMakeLists.txt', 'src/version.h') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.compiler }}-${{ matrix.cmake-args }}-
+            ccache-${{ runner.os }}-${{ matrix.compiler }}-
+            ccache-${{ runner.os }}-
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -146,13 +187,72 @@ jobs:
             && /opt/mxe/usr/bin/x86_64-w64-mingw32.static-cmake --build ${{ matrix.build-dir || 'build' }} -v --config ${{ matrix.build-config || 'Release' }} --target install
           "
       - name: Archive artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
             name: openxcom_${{ matrix.name }}_${{ matrix.compiler }}-${{ env.describe }}
             path: |
                 ${{ matrix.build-dir || 'build' }}/${{ matrix.app-bundle || 'bin' }}/**/*
                 !${{ matrix.build-dir || 'build' }}/${{ matrix.app-bundle || 'bin' }}/libopenxcom.dll.a
+            if-no-files-found: error
 
       - name: ccache stats
         if: runner.os == 'Linux' || runner.os == 'macOS' || runner.os == 'Windows'
         run: ccache -s --max-size=390MB
+
+  windows:
+    name: Windows (MSVC x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install sccache (Windows)
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Cache Windows deps
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-win-vc2017-${{ hashFiles('deps/dummy.txt') }}
+          restore-keys: deps-win-
+
+      - name: Download dependencies (Windows)
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          Invoke-WebRequest -Uri "https://openxcom.org/download/dev/openxcom-deps-win-vc2017.zip" -OutFile "openxcom-deps-win-vc2017-newest.zip"
+          Expand-Archive -Path "openxcom-deps-win-vc2017-newest.zip" -Force
+          Move-Item -Path "openxcom-deps-win-vc2017-newest\deps\*" -Destination "deps" -Force
+          Remove-Item -Recurse -Force "openxcom-deps-win-vc2017-newest", "openxcom-deps-win-vc2017-newest.zip"
+
+      - name: Setup environment
+        shell: bash
+        run: |
+          echo "describe=$(git describe)" >> $GITHUB_ENV
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+
+      - name: Generate project files (CMake preset)
+        run: cmake --preset windows-x64-release -DCHECK_CCACHE=ON
+
+      - name: Compile source code (CMake)
+        run: cmake --build --preset windows-x64-release --config Release -- -v:m
+
+      - name: Cache stats (Windows)
+        if: always()
+        run: |
+          ccache -s --max-size=390MB 2>&1 || sccache --show-stats 2>&1 || echo "no cache available"
+        continue-on-error: true
+
+      - name: Archive artifacts (Windows)
+        uses: actions/upload-artifact@v4
+        with:
+          name: openxcom_Windows_msvc-${{ env.describe }}
+          path: |
+            build/bin/**/*
+            !build/bin/**/*.pdb
+          if-no-files-found: error

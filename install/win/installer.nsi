@@ -221,9 +221,9 @@ Section "$(SETUP_GAME)" SecMain
 	SetOutPath "$INSTDIR"
 
 	File "OpenXcomEx.exe"
-	;File "..\..\LICENSE.txt"
-	;File "..\..\CHANGELOG.txt"
-	;File /oname=README.txt "..\..\README.md"
+	;File "..\..\docs\LICENSE.txt"
+	;File "..\..\docs\CHANGELOG.txt"
+	;File /oname=README.txt "..\..\docs\README.md"
 
 	;Copy UFO files
 	SetOutPath "$INSTDIR\UFO"

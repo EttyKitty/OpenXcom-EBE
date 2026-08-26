@@ -14,6 +14,7 @@
     <LocalDebuggerWorkingDirectory>$(ProjectDir)..\bin\$(Platform)\</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerCommandArguments>-data "$(ProjectDir)..\bin"</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArgumentsHistory>-data "C:\Repositories\BrutalOpenXcomExtended\src\..\bin"|</LocalDebuggerCommandArgumentsHistory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LocalDebuggerWorkingDirectory>$(ProjectDir)..\bin\$(Platform)\</LocalDebuggerWorkingDirectory>

@@ -67,6 +67,7 @@ bin/UFO
 bin/TFTD
 docs/html/
 build/
+build2/
 Dependencies/
 translations/
 *.*.user
@@ -86,4 +87,6 @@ bin/user
 /*.kdev4
 bin/Win32/stderr.txt
 /makefile
+.cortexkit/
+.opencode/
 --------------

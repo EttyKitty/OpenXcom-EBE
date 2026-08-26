@@ -1,4 +1,4 @@
-cmake_minimum_required ( VERSION 3.5 )
+cmake_minimum_required ( VERSION 3.20 )
 
 project ( OpenXcom )
 
@@ -10,6 +10,9 @@ include(GNUInstallDirs)
 set (CMAKE_CXX_STANDARD 17)
 # use std=c++11 rather than std=gnu++11
 #set (CMAKE_CXX_EXTENSIONS OFF)
+
+# Export compile_commands.json for clangd / IDE support (used by .clangd and .vscode)
+set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option ( DEV_BUILD "Development Build. Disable this for release builds" ON )
 option ( DUMP_CORE "Disables exception and segfault handling." OFF )
@@ -25,12 +28,37 @@ set ( DATADIR "" CACHE STRING "Where to search for datafiles" )
 
 if ( CHECK_CCACHE )
   find_program( CCACHE_PROGRAM ccache )
-  if( NOT CCACHE_PROGRAM )
-    message ( FATAL_ERROR "CCACHE requested but not found on the system." )
+  find_program( SCCACHE_PROGRAM sccache )
+  if ( CCACHE_PROGRAM )
+    if(MSVC)
+      # MSVC+Ninja uses cmcldeps for dependency tracking - RULE_LAUNCH breaks it, use launcher only
+      set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+      set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+      message(STATUS "found ccache (${CCACHE_PROGRAM}) - MSVC launcher mode")
+    else()
+      set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+      set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "${CCACHE_PROGRAM}")
+      message(STATUS "found ccache (${CCACHE_PROGRAM})")
+    endif()
+  elseif ( SCCACHE_PROGRAM )
+    if(MSVC)
+      # sccache+MSVC+Ninja: RULE_LAUNCH wraps cmcldeps/RC and causes "unexpected argument '-E'" / double sccache
+      # Use launcher only. For /Zi + /FS to cache correctly sccache needs /Z7 (Embedded) to avoid vc140.pdb contention
+      # See C1041 error: "cannot open program database vc140.pdb; if multiple CL write to same .PDB use /FS"
+      set(CMAKE_C_COMPILER_LAUNCHER "${SCCACHE_PROGRAM}")
+      set(CMAKE_CXX_COMPILER_LAUNCHER "${SCCACHE_PROGRAM}")
+      # Force Embedded debug info (/Z7) when sccache+MSVC - required for correct caching with /MP
+      set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+      message(STATUS "found sccache (${SCCACHE_PROGRAM}) - MSVC launcher mode (Embedded /Z7 for caching)")
+    else()
+      set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${SCCACHE_PROGRAM}")
+      set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "${SCCACHE_PROGRAM}")
+      set(CMAKE_C_COMPILER_LAUNCHER "${SCCACHE_PROGRAM}")
+      set(CMAKE_CXX_COMPILER_LAUNCHER "${SCCACHE_PROGRAM}")
+      message(STATUS "found sccache (${SCCACHE_PROGRAM})")
+    endif()
   else ()
-    set_property( GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}" )
-    set_property( GLOBAL PROPERTY RULE_LAUNCH_LINK "${CCACHE_PROGRAM}" )
-    message ( STATUS "found CCACHE (${CCACHE_PROGRAM})" )
+    message(FATAL_ERROR "CHECK_CCACHE requested but neither ccache nor sccache found on the system.")
   endif()
 endif ()
 
@@ -173,7 +201,7 @@ if ( BUILD_PACKAGE )
   set ( CPACK_PACKAGE_VENDOR "The OpenXcom project" )
   set ( CPACK_PACKAGE_DESCRIPTION_SUMMARY "Open-source clone of UFO: Enemy Unknown" )
   set ( CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/cmake/modules/Description.txt" )
-  set ( CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md" )
+  set ( CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/docs/README.md" )
   set ( CPACK_PACKAGE_CONTACT "The OpenXcom project (http://www.openxcom.org)" )
   # DMG-specific -- sets CPACK_GENERATOR to DragNDrop itself
   if (APPLE)
@@ -185,7 +213,7 @@ if ( BUILD_PACKAGE )
     set ( CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_SOURCE_DIR}/res/openxcom_block.png" )
     set ( CPACK_GENERATOR "DragNDrop")
   else()
-    set ( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt" )
+    set ( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/docs/LICENSE.txt" )
   endif()
 
   string ( LENGTH "${TARGET_PLATFORM}" has_target )
