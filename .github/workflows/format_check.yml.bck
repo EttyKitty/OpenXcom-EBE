@@ -1,0 +1,28 @@
+name: format-check
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+jobs:
+  format:
+    name: Format check (clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+  
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get -yq --no-install-suggests --no-install-recommends install clang-format
+          clang-format --version
+  
+      - name: Check formatting
+        run: |
+          echo "Checking C++ formatting with clang-format --dry-run --Werror (per .clang-format)..."
+          # Use git ls-files where possible, fallback to find for nested paths
+          if git ls-files --error-unmatch -- src >/dev/null 2>&1; then
+            git ls-files -z -- src | grep -z -E '\.(cpp|h)$' | xargs -0 -r clang-format --dry-run --Werror --style=file
+          else
+            find src -type f \( -name '*.cpp' -o -name '*.h' \) -print0 | xargs -0 -r clang-format --dry-run --Werror --style=file
+          fi
+          echo "Format check passed."
