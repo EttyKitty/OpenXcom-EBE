@@ -1,0 +1,13 @@
+name: source-sync
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+jobs:
+  source-sync:
+    name: Source sync check (CMake vs vcxproj)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check CMake vs vcxproj sync
+        run: python3 scripts/check_vcxproj_sync.py --verbose
