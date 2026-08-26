@@ -2694,7 +2694,7 @@ void Map::updateLoFCache()
 	bool useParabola = isThrow || isArcing;
 	if (useParabola)
 	{
-		// honest parabola preview - shared helper with Projectile::calculateThrow (no accuracy delta, DRY)
+		// parabola preview - shared helper with Projectile::calculateThrow (no accuracy delta)
 		Position originVoxel = _save->getTileEngine()->getOriginVoxel(tmp, originTile);
 		bool forced = Options::forceFire && _isCtrlPressed && _save->getSide() == FACTION_PLAYER;
 		Position chosenVoxel = Position(-1, -1, -1);
@@ -2905,8 +2905,6 @@ void Map::drawLoFLine(Surface *surface)
 	}
 	// lazy init neutral dots - ColorReplace at blit tints to Pathfinding::green/red so hue matches tile markers
 	// Shader ColorReplace: dest = newColor | ((src & 0x0F)+shade); 0 = brightest shade, 15 = darkest (black fallback)
-	// old code used text index blockOffset-1 (shade 15 darkest) and StandardShade -> wrong hue/block and near-black
-	// use shade 0 (brightest) with non-zero group so dot is visible bright green/red
 	if (!_lofDotGreen || !_lofDotRed)
 	{
 		const Uint8 brightIdx = 16; // 0x10 = group1 shade0 brightest; ColorReplace replaces group, keeps shade0
@@ -2936,7 +2934,7 @@ void Map::drawLoFLine(Surface *surface)
 	// parabola LOF - draw along actual curved voxel polyline with per-segment Z culling
 	if (_cachedLoFIsParabola && _cachedLoFTrajectory.size() >= 2)
 	{
-		// build screen polyline from full parabola trajectory (no Bresenham stair, actual curve)
+		// build screen polyline from parabola trajectory
 		std::vector<Position> screens;
 		screens.reserve(_cachedLoFTrajectory.size());
 		for (auto &v : _cachedLoFTrajectory)
@@ -3035,7 +3033,6 @@ void Map::drawLoFLine(Surface *surface)
 		}
 		return;
 	}
-	// Use cached origin/target voxel for perfectly straight screen line (no Bresenham stair).
 	// Voxel trajectory is still used for block detection; screen interpolation gives visual line.
 	Position originVoxel = _cachedLoFOriginVoxel;
 	Position targetVoxel = _cachedLoFTargetVoxel;
@@ -3059,7 +3056,7 @@ void Map::drawLoFLine(Surface *surface)
 	{
 		return;
 	}
-	const double spacing = 7.0; // sparse dots, matches Q7
+	const double spacing = 7.0; // sparse dots, matches
 	int steps = (int)(dist / spacing);
 	if (steps < 3)
 	{
@@ -3069,7 +3066,7 @@ void Map::drawLoFLine(Surface *surface)
 	double hitFraction = _cachedLoFHitFraction;
 	if (hitFraction < 0.0) hitFraction = 0.0;
 	if (hitFraction > 1.0) hitFraction = 1.0;
-	// skip dots near shooter and near target cursor (over terrain, under cursor - Q8)
+	// skip dots near shooter and near target cursor
 	for (int i = 2; i < steps - 1; ++i)
 	{
 		double t = (double)i / (double)(steps - 1);
@@ -3088,7 +3085,7 @@ void Map::drawLoFLine(Surface *surface)
 		{
 			continue;
 		}
-		// green before hit, red after hit (1:1 with projectile trajectory) - tint neutral dot via ColorReplace to match tile markers
+		// green before hit, red after hit
 		bool beforeHit = (t < hitFraction - 1e-9);
 		if (hitFraction >= 0.999) beforeHit = true;
 		int dotColor = beforeHit ? Pathfinding::green : Pathfinding::red;

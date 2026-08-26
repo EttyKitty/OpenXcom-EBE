@@ -280,7 +280,7 @@ public:
 	bool detonate(Tile* tile, int power);
 	/// Validates a throwing action.
 	bool validateThrow(BattleAction &action, Position originVoxel, Position targetVoxel, int depth, double *curve = 0, int *voxelType = 0, bool forced = false);
-	/// Find valid throw/arcing target voxel and curvature via candidate list + validateThrow - shared by Projectile and Map LOF preview (DRY for honest parabola)
+	/// Find valid throw/arcing target voxel and curvature via candidate list + validateThrow
 	bool findThrowTargetAndCurvature(BattleAction &action, Position originVoxel, Position &outTargetVoxel, double &outCurvature, int &outVoxelType, bool forced);
 	/// Opens any doors this door is connected to.
 	std::pair<int, Position> checkAdjacentDoors(Position pos, TilePart part);
@@ -292,13 +292,13 @@ public:
 	int getArcDirection(int directionA, int directionB) const;
 	/// determine the origin voxel of a given action.
 	Position getOriginVoxel(BattleAction &action, Tile *tile);
-	/// determine the target voxel (first candidate) for a shooting action - 1:1 with Projectile::calculateTrajectory
+	/// determine the target voxel (first candidate) for a shooting action
 	Position getTargetVoxel(Position targetPos, bool forced, BattleUnit *shooter = nullptr) const;
-	/// all target voxel candidates in priority order (unit chest/feet/head, object, walls, floor) - DRY helper
+	/// all target voxel candidates in priority order (unit chest/feet/head, object, walls, floor)
 	std::vector<Position> getTargetVoxelCandidates(Position targetPos, bool forced, BattleUnit *shooter = nullptr) const;
-	/// aimed-shot target voxel - 1:1 with ProjectileFlyBState::init (handles unit exposure, walls, forced/launch, off-centre) - single source of truth
+	/// aimed-shot target voxel - 1:1 with ProjectileFlyBState::init (handles unit exposure, walls, forced/launch, off-centre)
 	Position getAimedShotTargetVoxel(BattleAction &action);
-	/// check if a calculateLineVoxel hit is intentional (aimed tile/unit itself) vs blocking cover - shared by Map LOF preview and Projectile
+	/// check if a calculateLineVoxel hit is intentional (aimed tile/unit itself) vs blocking cover
 	bool isLofHitIntentional(VoxelType hitType, Position hitVoxel, Position targetPos) const;
 	/// mark a region of the map as "dangerous" for a turn.
 	void setDangerZone(Position pos, int radius, BattleUnit *unit);
