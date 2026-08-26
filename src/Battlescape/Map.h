@@ -102,6 +102,11 @@ private:
 	int _cachedLoFRelativeOrigin = 0;
 	bool _cachedLoFKneeled = false;
 	size_t _cachedLoFWaypointCount = 0;
+	VoxelType _cachedLoFHitType = V_EMPTY;
+	Position _cachedLoFHitVoxel = Position(-1, -1, -1);
+	double _cachedLoFHitFraction = 1.0;
+	Surface *_lofDotGreen = nullptr;
+	Surface *_lofDotRed = nullptr;
 	int _animFrame;
 	Projectile *_projectile;
 	bool _followProjectile;

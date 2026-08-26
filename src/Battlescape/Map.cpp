@@ -106,7 +106,7 @@ namespace OpenXcom
  * @param visibleMapHeight Current visible map height.
  */
 Map::Map(Game *game, int width, int height, int x, int y, int visibleMapHeight) : InteractiveSurface(width, height, x, y),
-	_game(game), _isTFTD(false), _arrow(0), _lofDot(0), _anyIndicator(false), _isAltPressed(false), _isCtrlPressed(false),
+	_game(game), _isTFTD(false), _arrow(0), _lofDot(0), _lofDotGreen(0), _lofDotRed(0), _anyIndicator(false), _isAltPressed(false), _isCtrlPressed(false),
 	_selectorX(0), _selectorY(0), _mouseX(0), _mouseY(0), _cursorType(CT_NORMAL), _cursorSize(1), _animFrame(0),
 	_projectile(0), _followProjectile(true), _projectileInFOV(false), _explosionInFOV(false), _launch(false), _visibleMapHeight(visibleMapHeight),
 	_unitDying(false), _smoothingEngaged(false), _flashScreen(false), _bgColor(15), _projectileSet(0), _showObstacles(false), _showInfoOnCursor(false)
@@ -253,6 +253,8 @@ Map::~Map()
 	delete _obstacleTimer;
 	delete _arrow;
 	delete _lofDot;
+	delete _lofDotGreen;
+	delete _lofDotRed;
 	delete _message;
 	delete _camera;
 	delete _txtAccuracy;
@@ -400,6 +402,14 @@ void Map::setPalette(const SDL_Color *colors, int firstcolor, int ncolors)
 	if (_lofDot)
 	{
 		_lofDot->setPalette(colors, firstcolor, ncolors);
+	}
+	if (_lofDotGreen)
+	{
+		_lofDotGreen->setPalette(colors, firstcolor, ncolors);
+	}
+	if (_lofDotRed)
+	{
+		_lofDotRed->setPalette(colors, firstcolor, ncolors);
 	}
 	refreshHiddenMovementBackground();
 	_message->initText(_game->getMod()->getFont("FONT_BIG"), _game->getMod()->getFont("FONT_SMALL"), _game->getLanguage());
@@ -2585,6 +2595,9 @@ void Map::setCursorType(CursorType type, int size)
 	_cacheCursorPosition = TileEngine::invalid;
 	_cacheHasLOS = -1;
 	_cachedLoFTrajectory.clear();
+	_cachedLoFHitType = V_EMPTY;
+	_cachedLoFHitVoxel = Position(-1, -1, -1);
+	_cachedLoFHitFraction = 1.0;
 
 	_cursorType = type;
 	if (_cursorType == CT_NORMAL)
@@ -2604,36 +2617,50 @@ CursorType Map::getCursorType() const
 
 void Map::updateLoFCache()
 {
-	if (!Options::oxceShowLoFLine)
+	auto clearLoF = [&]()
 	{
 		_cachedLoFTrajectory.clear();
+		_cachedLoFHitType = V_EMPTY;
+		_cachedLoFHitVoxel = Position(-1, -1, -1);
+		_cachedLoFHitFraction = 1.0;
+	};
+	if (!Options::oxceShowLoFLine)
+	{
+		clearLoF();
 		return;
 	}
 	if (_cursorType != CT_AIM)
 	{
-		_cachedLoFTrajectory.clear();
+		clearLoF();
 		return;
 	}
 	if (!_save)
 	{
-		_cachedLoFTrajectory.clear();
+		clearLoF();
 		return;
 	}
 	BattleAction *action = _save->getBattleGame()->getCurrentAction();
 	if (!action || !action->targeting || !action->actor)
 	{
-		_cachedLoFTrajectory.clear();
+		clearLoF();
 		return;
 	}
 	// TODO: BA_THROW currently deferred - show no line for throws; later implement parabola via calculateParabolaVoxel
 	if (action->type == BA_THROW)
 	{
-		_cachedLoFTrajectory.clear();
+		clearLoF();
 		return;
 	}
 	Position selPos;
 	getSelectorPosition(&selPos);
-	bool sameTarget = selPos == _cachedLoFTarget;
+	// freeze LOF to first waypoint when confirm firing is active (see BattlescapeGame::primaryAction - first click stores waypoint, second confirms)
+	Position effectivePos = selPos;
+	bool freezeLoF = Options::battleConfirmFireMode && !_waypoints.empty() && action->type != BA_LAUNCH && !action->sprayTargeting;
+	if (freezeLoF)
+	{
+		effectivePos = _waypoints.front();
+	}
+	bool sameTarget = effectivePos == _cachedLoFTarget;
 	bool sameActor = action->actor == _cachedLoFActor;
 	bool sameType = (int)action->type == _cachedLoFActionType;
 	bool sameOrigin = (int)action->relativeOrigin == _cachedLoFRelativeOrigin;
@@ -2659,26 +2686,26 @@ void Map::updateLoFCache()
 	}
 	if (!originTile)
 	{
-		_cachedLoFTrajectory.clear();
+		clearLoF();
 		return;
 	}
 	BattleAction tmp = *action;
-	tmp.target = selPos;
-	tmp.waypoints = _waypoints;
+	tmp.target = effectivePos;
+	tmp.waypoints.assign(_waypoints.begin(), _waypoints.end());
 	Position targetVoxel;
 	if (tmp.weapon && tmp.weapon->getArcingShot(tmp.type))
 	{
 		// arcing (throw-like) - use simple throw candidates (deferred preview uses base)
 		bool forced = Options::forceFire && _isCtrlPressed && _save->getSide() == FACTION_PLAYER;
-		targetVoxel = _save->getTileEngine()->getTargetVoxel(selPos, forced, tmp.actor);
+		targetVoxel = _save->getTileEngine()->getTargetVoxel(effectivePos, forced, tmp.actor);
 	}
 	else
 	{
 		targetVoxel = _save->getTileEngine()->getAimedShotTargetVoxel(tmp);
 		if (targetVoxel == TileEngine::invalid || targetVoxel == TileEngine::invalid.toVoxel())
 		{
-			_cachedLoFTrajectory.clear();
-			_cachedLoFTarget = selPos;
+			clearLoF();
+			_cachedLoFTarget = effectivePos;
 			_cachedLoFActor = action->actor;
 			_cachedLoFActionType = (int)action->type;
 			_cachedLoFRelativeOrigin = (int)tmp.relativeOrigin;
@@ -2689,8 +2716,66 @@ void Map::updateLoFCache()
 	}
 	Position originVoxel = _save->getTileEngine()->getOriginVoxel(tmp, originTile);
 	_cachedLoFTrajectory.clear();
-	_save->getTileEngine()->calculateLineVoxel(originVoxel, targetVoxel, true, &_cachedLoFTrajectory, action->actor);
-	_cachedLoFTarget = selPos;
+	VoxelType hit = _save->getTileEngine()->calculateLineVoxel(originVoxel, targetVoxel, true, &_cachedLoFTrajectory, action->actor);
+	_cachedLoFHitType = hit;
+	_cachedLoFHitVoxel = Position(-1, -1, -1);
+	_cachedLoFHitFraction = 1.0;
+	if (hit != V_EMPTY && !_cachedLoFTrajectory.empty())
+	{
+		Position hitVoxel = _cachedLoFTrajectory.back();
+		_cachedLoFHitVoxel = hitVoxel;
+		bool intentional = _save->getTileEngine()->isLofHitIntentional(hit, hitVoxel, effectivePos);
+		if (intentional)
+		{
+			_cachedLoFHitFraction = 1.0;
+		}
+		else
+		{
+			Position originScreen, targetScreen, hitScreen;
+			_camera->convertVoxelToScreen(originVoxel, &originScreen);
+			_camera->convertVoxelToScreen(targetVoxel, &targetScreen);
+			_camera->convertVoxelToScreen(hitVoxel, &hitScreen);
+			int dx = targetScreen.x - originScreen.x;
+			int dy = targetScreen.y - originScreen.y;
+			double len2 = (double)dx * dx + (double)dy * dy;
+			if (len2 < 1e-9)
+			{
+				// vertical line degenerate in screen space - fallback to voxel distance
+				int vdx = targetVoxel.x - originVoxel.x;
+				int vdy = targetVoxel.y - originVoxel.y;
+				int vdz = targetVoxel.z - originVoxel.z;
+				double vLen2 = (double)vdx * vdx + (double)vdy * vdy + (double)vdz * vdz;
+				if (vLen2 < 1e-9)
+				{
+					_cachedLoFHitFraction = 1.0;
+				}
+				else
+				{
+					int hdx = hitVoxel.x - originVoxel.x;
+					int hdy = hitVoxel.y - originVoxel.y;
+					int hdz = hitVoxel.z - originVoxel.z;
+					double dot = (double)hdx * vdx + (double)hdy * vdy + (double)hdz * vdz;
+					double t = dot / vLen2;
+					if (t < 0.0) t = 0.0;
+					if (t > 1.0) t = 1.0;
+					_cachedLoFHitFraction = t;
+				}
+			}
+			else
+			{
+				double dot = (double)(hitScreen.x - originScreen.x) * dx + (double)(hitScreen.y - originScreen.y) * dy;
+				double t = dot / len2;
+				if (t < 0.0) t = 0.0;
+				if (t > 1.0) t = 1.0;
+				_cachedLoFHitFraction = t;
+			}
+		}
+	}
+	else
+	{
+		_cachedLoFHitFraction = 1.0;
+	}
+	_cachedLoFTarget = effectivePos;
 	_cachedLoFOriginVoxel = originVoxel;
 	_cachedLoFTargetVoxel = targetVoxel;
 	_cachedLoFActor = action->actor;
@@ -2706,20 +2791,38 @@ void Map::drawLoFLine(Surface *surface)
 	{
 		return;
 	}
-	if (!_lofDot)
+	// lazy init neutral dots - ColorReplace at blit tints to Pathfinding::green/red so hue matches tile markers
+	// Shader ColorReplace: dest = newColor | ((src & 0x0F)+shade); 0 = brightest shade, 15 = darkest (black fallback)
+	// old code used text index blockOffset-1 (shade 15 darkest) and StandardShade -> wrong hue/block and near-black
+	// use shade 0 (brightest) with non-zero group so dot is visible bright green/red
+	if (!_lofDotGreen || !_lofDotRed)
 	{
-		_lofDot = new Surface(2, 2);
-		_lofDot->setPalette(getPalette());
-		_lofDot->lock();
-		int col = Palette::blockOffset(1);
-		_lofDot->setPixel(0, 0, (Uint8)col);
-		_lofDot->setPixel(1, 0, (Uint8)col);
-		_lofDot->setPixel(0, 1, (Uint8)col);
-		_lofDot->setPixel(1, 1, (Uint8)col);
-		_lofDot->unlock();
+		const Uint8 brightIdx = 16; // 0x10 = group1 shade0 brightest; ColorReplace replaces group, keeps shade0
+		if (!_lofDotGreen)
+		{
+			_lofDotGreen = new Surface(2, 2);
+			_lofDotGreen->setPalette(getPalette());
+			_lofDotGreen->lock();
+			_lofDotGreen->setPixel(0, 0, brightIdx);
+			_lofDotGreen->setPixel(1, 0, brightIdx);
+			_lofDotGreen->setPixel(0, 1, brightIdx);
+			_lofDotGreen->setPixel(1, 1, brightIdx);
+			_lofDotGreen->unlock();
+		}
+		if (!_lofDotRed)
+		{
+			_lofDotRed = new Surface(2, 2);
+			_lofDotRed->setPalette(getPalette());
+			_lofDotRed->lock();
+			_lofDotRed->setPixel(0, 0, brightIdx);
+			_lofDotRed->setPixel(1, 0, brightIdx);
+			_lofDotRed->setPixel(0, 1, brightIdx);
+			_lofDotRed->setPixel(1, 1, brightIdx);
+			_lofDotRed->unlock();
+		}
 	}
 	// Use cached origin/target voxel for perfectly straight screen line (no Bresenham stair).
-	// This fixes jagged dancing dots while still using voxel trajectory for block detection (TODO green/red split).
+	// Voxel trajectory is still used for block detection; screen interpolation gives visual line.
 	Position originVoxel = _cachedLoFOriginVoxel;
 	Position targetVoxel = _cachedLoFTargetVoxel;
 	if (originVoxel == Position(-1, -1, -1) || targetVoxel == Position(-1, -1, -1))
@@ -2749,6 +2852,9 @@ void Map::drawLoFLine(Surface *surface)
 		steps = 3;
 	}
 	int viewLevel = _camera->getViewLevel();
+	double hitFraction = _cachedLoFHitFraction;
+	if (hitFraction < 0.0) hitFraction = 0.0;
+	if (hitFraction > 1.0) hitFraction = 1.0;
 	// skip dots near shooter and near target cursor (over terrain, under cursor - Q8)
 	for (int i = 2; i < steps - 1; ++i)
 	{
@@ -2762,14 +2868,23 @@ void Map::drawLoFLine(Surface *surface)
 		{
 			continue;
 		}
-		// TODO: green/red split - choose color based on whether t is beyond hit fraction (requires hit index)
 		sx -= 1;
 		sy -= 1;
 		if (sx < -2 || sx >= surface->getWidth() || sy < -2 || sy >= surface->getHeight())
 		{
 			continue;
 		}
-		_lofDot->blitNShade(surface, sx, sy, 0);
+		// green before hit, red after hit (1:1 with projectile trajectory) - tint neutral dot via ColorReplace to match tile markers
+		bool beforeHit = (t < hitFraction - 1e-9);
+		if (hitFraction >= 0.999) beforeHit = true;
+		int dotColor = beforeHit ? Pathfinding::green : Pathfinding::red;
+		if (dotColor <= 0) dotColor = beforeHit ? 4 : 3; // fallback block if ruleset not loaded
+		// both dots are neutral bright (16 shade0); pick any available as source - ColorReplace supplies hue
+		Surface *srcDot = _lofDotGreen ? _lofDotGreen : _lofDotRed;
+		if (srcDot)
+		{
+			srcDot->blitNShade(surface, sx, sy, 0, false, dotColor);
+		}
 	}
 }
 

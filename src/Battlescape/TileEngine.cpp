@@ -6732,6 +6732,62 @@ Position TileEngine::getAimedShotTargetVoxel(BattleAction &action)
 }
 
 /**
+ * Check if a line-of-fire hit is intentional (target itself) vs blocking cover.
+ * Used by Map LOF preview to decide green vs red split; kept here to avoid copy-pasting canTargetUnit logic.
+ * Mirrors Projectile impact handling: unit hit intentional only if hitUnit == targetUnit (via getOverlappingUnit for 2x2), terrain only if same tile.
+ */
+bool TileEngine::isLofHitIntentional(VoxelType hitType, Position hitVoxel, Position targetPos) const
+{
+	if (hitType == V_EMPTY)
+	{
+		return true;
+	}
+	if (!_save)
+	{
+		return false;
+	}
+	if (hitType == V_UNIT)
+	{
+		Tile *targetTile = _save->getTile(targetPos);
+		BattleUnit *targetUnit = nullptr;
+		if (targetTile)
+		{
+			targetUnit = targetTile->getOverlappingUnit(_save);
+			if (!targetUnit) targetUnit = targetTile->getUnit();
+		}
+		Tile *hitTile = _save->getTile(hitVoxel.toTile());
+		BattleUnit *hitUnit = nullptr;
+		if (hitTile)
+		{
+			hitUnit = hitTile->getOverlappingUnit(_save);
+			if (!hitUnit) hitUnit = hitTile->getUnit();
+		}
+		if (targetUnit && hitUnit == targetUnit)
+		{
+			return true;
+		}
+		if (!targetUnit && !hitUnit)
+		{
+			return true;
+		}
+		if (targetUnit && hitUnit && hitUnit != targetUnit)
+		{
+			return false;
+		}
+		if (!targetUnit && hitUnit)
+		{
+			return false;
+		}
+		return hitVoxel.toTile() == targetPos;
+	}
+	else
+	{
+		// terrain (V_FLOOR/WESTWALL/NORTHWALL/OBJECT/OUTOFBOUNDS): intentional only if hit at aimed tile itself
+		return hitVoxel.toTile() == targetPos;
+	}
+}
+
+/**
  * mark a region of the map as "dangerous" for a turn.
  * @param pos is the epicenter of the explosion.
  * @param radius how far to spread out.

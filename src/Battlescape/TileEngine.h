@@ -294,6 +294,8 @@ public:
 	std::vector<Position> getTargetVoxelCandidates(Position targetPos, bool forced, BattleUnit *shooter = nullptr) const;
 	/// aimed-shot target voxel - 1:1 with ProjectileFlyBState::init (handles unit exposure, walls, forced/launch, off-centre) - single source of truth
 	Position getAimedShotTargetVoxel(BattleAction &action);
+	/// check if a calculateLineVoxel hit is intentional (aimed tile/unit itself) vs blocking cover - shared by Map LOF preview and Projectile
+	bool isLofHitIntentional(VoxelType hitType, Position hitVoxel, Position targetPos) const;
 	/// mark a region of the map as "dangerous" for a turn.
 	void setDangerZone(Position pos, int radius, BattleUnit *unit);
 	/// Checks if a position is valid for a unit, used for spawning and forced movement.
