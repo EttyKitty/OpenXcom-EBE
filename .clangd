@@ -1,0 +1,12 @@
+CompileFlags:
+  CompilationDatabase: build
+  Add: [-std=c++17, -Ilibs/rapidyaml, -Isrc]
+Diagnostics:
+  UnusedIncludes: Strict
+  MissingIncludes: Strict
+Index:
+  Background: Build
+InlayHints:
+  Enabled: No
+Hover:
+  ShowAKA: Yes

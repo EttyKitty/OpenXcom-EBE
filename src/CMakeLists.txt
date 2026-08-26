@@ -459,7 +459,9 @@ set ( c_src
   ../libs/miniz/miniz.c
 )
 set_property ( SOURCE ${c_src} APPEND PROPERTY COMPILE_DEFINITIONS MINIZ_NO_STDIO )
-set_property ( SOURCE Engine/Scalers/xbrz.cpp APPEND_STRING PROPERTY COMPILE_FLAGS -Wno-unused\ )
+if ( NOT MSVC )
+  set_property ( SOURCE Engine/Scalers/xbrz.cpp APPEND_STRING PROPERTY COMPILE_FLAGS -Wno-unused\ )
+endif()
 
 set ( data_install_dir bin )
 if ( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" )
@@ -510,6 +512,13 @@ if ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
   endif ()
 endif ()
 
+# --- Fast build options (PCH + Unity) - toggle via -DENABLE_PCH=ON -DENABLE_UNITY_BUILD=ON or preset windows-x64-debug-fast ---
+option(ENABLE_PCH "Enable precompiled headers for faster compilation" OFF)
+option(ENABLE_UNITY_BUILD "Enable unity build for faster compilation (groups ~16 TUs)" OFF)
+if(ENABLE_PCH OR ENABLE_UNITY_BUILD)
+  message(STATUS "Fast build: PCH=${ENABLE_PCH} Unity=${ENABLE_UNITY_BUILD}")
+endif()
+
 if ( MSVC )
   # Set warning levels for Debug and Release with debug info
   set ( CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /W${MSVC_WARNING_LEVEL}" )
@@ -520,7 +529,22 @@ if ( MSVC )
   set ( CMAKE_EXE_LINKER_FLAGS "/manifest:no" )
   set ( CMAKE_MODULE_LINKER_FLAGS "/manifest:no" )
   set ( CMAKE_SHARED_LINKER_FLAGS="/manifest:no" )
+  # Fast Debug: ensure Debug never uses LTCG/WPO - major link-time bottleneck (5-10 min)
+  # VS generator is multi-config: CMAKE_BUILD_TYPE ignored, so explicitly disable IPO for Debug
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_DEBUG OFF)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO OFF)
+  # Force incremental linking for Debug (LTCG disables it)
+  set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /INCREMENTAL")
+  set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /INCREMENTAL")
+  set(CMAKE_MODULE_LINKER_FLAGS_DEBUG "${CMAKE_MODULE_LINKER_FLAGS_DEBUG} /INCREMENTAL")
+  # Ensure /MP for all MSVC builds (needed for Ninja as well, vcxproj already has it)
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/MP> $<$<COMPILE_LANGUAGE:C>:/MP>)
+  # Mod.cpp and a few large TUs exceed 64k sections - /bigobj required
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/bigobj>)
 endif ()
+# Also disable IPO for Debug on GCC/Clang/Ninja (prevents -flto in Debug)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_DEBUG OFF)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO OFF)
 
 if ( DUMP_CORE )
   set_property ( SOURCE main.cpp APPEND PROPERTY COMPILE_DEFINITIONS DUMP_CORE )
@@ -601,6 +625,36 @@ endif ()
 
 add_executable ( openxcom  ${application_type} ${openxcom_src} ${openxcom_icon} )
 
+# --- PCH: precompile heavy STL + SDL + project headers (src/pch.h) ---
+if(ENABLE_PCH)
+  target_precompile_headers(openxcom PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_SOURCE_DIR}/src/pch.h>"
+  )
+endif()
+
+# --- Unity Build: group ~16 TUs -> 310 -> ~20 compile units (5x speedup) ---
+if(ENABLE_UNITY_BUILD)
+  set_target_properties(openxcom PROPERTIES
+    UNITY_BUILD ON
+    UNITY_BUILD_MODE BATCH
+    UNITY_BUILD_BATCH_SIZE 16
+  )
+  # Files that break unity (C file, or template-heavy with anonymous namespaces)
+  set_property(SOURCE ../libs/miniz/miniz.c PROPERTY SKIP_UNITY_BUILD_INCLUSION ON)
+  set_property(SOURCE Engine/Scalers/xbrz.cpp PROPERTY SKIP_UNITY_BUILD_INCLUSION ON)
+  foreach(_rapidyaml_src IN LISTS rapidyaml_src)
+    set_property(SOURCE ${_rapidyaml_src} PROPERTY SKIP_UNITY_BUILD_INCLUSION ON)
+  endforeach()
+endif()
+# Exclude unity-breaking files from PCH as well (they use different flags / C language)
+if(ENABLE_PCH)
+  set_property(SOURCE ../libs/miniz/miniz.c PROPERTY SKIP_PRECOMPILE_HEADERS ON)
+  set_property(SOURCE Engine/Scalers/xbrz.cpp PROPERTY SKIP_PRECOMPILE_HEADERS ON)
+  foreach(_rapidyaml_src IN LISTS rapidyaml_src)
+    set_property(SOURCE ${_rapidyaml_src} PROPERTY SKIP_PRECOMPILE_HEADERS ON)
+  endforeach()
+endif()
+
 if ( EMBED_ASSETS )
   add_dependencies(openxcom zips)
 endif ()
@@ -623,7 +677,9 @@ if (${CMAKE_SYSTEM_NAME} MATCHES FreeBSD OR ${CMAKE_SYSTEM_NAME} MATCHES NetBSD 
 endif ()
 
 if (WIN32)
-  set(CMAKE_EXE_LINKER_FLAGS -Wl,--export-all-symbols)
+  if (MINGW)
+    set(CMAKE_EXE_LINKER_FLAGS -Wl,--export-all-symbols)
+  endif()
   set(WIN32_LIBS imagehlp dbghelp)
 endif(WIN32)
 
@@ -653,7 +709,7 @@ if ( NOT EMBED_ASSETS )
   endforeach ()
 endif ()
 
-# Copy Windows DLLs to bin folder
+# Copy Windows DLLs to bin folder - use copy_if_different to avoid 5 DLL copies on every incremental link
 if ( WIN32 )
   if ( CMAKE_CL_64 )
     file ( GLOB Windows_dll "${DEPS_DIR}/lib/x64/*.dll" )
@@ -663,7 +719,7 @@ if ( WIN32 )
   foreach ( dll ${Windows_dll} )
     add_custom_command ( TARGET openxcom
       POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy ${dll} ${EXECUTABLE_OUTPUT_PATH}
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different ${dll} ${EXECUTABLE_OUTPUT_PATH}
 	  VERBATIM )
     install ( FILES ${dll} DESTINATION bin)
   endforeach()

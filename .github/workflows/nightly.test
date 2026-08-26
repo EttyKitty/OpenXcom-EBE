@@ -60,7 +60,7 @@ jobs:
         shell: powershell
         run: |
           New-Item -ItemType "directory" -Path "artifacts"
-          Compress-Archive -Path "bin\Win32\Release\OpenXcom.exe", "bin\Win32\*.dll", "bin\common", "bin\standard", "bin\TFTD", "bin\UFO", "LICENSE.txt" -DestinationPath "artifacts\${{ env.FILENAME }}_win32_xp.zip"
+          Compress-Archive -Path "bin\Win32\Release\OpenXcom.exe", "bin\Win32\*.dll", "bin\common", "bin\standard", "bin\TFTD", "bin\UFO", "docs/LICENSE.txt" -DestinationPath "artifacts\${{ env.FILENAME }}_win32_xp.zip"
 
       - name: Get SHA hashes
         uses: nrwl/nx-set-shas@v4

@@ -1,0 +1,32 @@
+{
+	"files.eol": "\n",
+	"files.associations": {
+		"*.h": "cpp",
+		"*.inc.h": "cpp"
+	},
+	"editor.formatOnSave": true,
+	"editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+
+	"clangd.arguments": [
+		"--background-index",
+		"--compile-commands-dir=build/debug-fast",
+		"--header-insertion=never"
+	],
+
+	"cmake.useCMakePresets": "always",
+  	"cmake.configureOnOpen": true,
+
+	"search.exclude": {
+		"**/build": true,
+		"**/bin/UFO": true,
+		"**/bin/TFTD": true,
+		"**/.vs": true
+	},
+	"files.watcherExclude": {
+		"**/build/**": true,
+		"**/bin/**": true
+	},
+
+	"C_Cpp.default.compileCommands": "${workspaceFolder}/build/debug-fast/compile_commands.json",
+	"C_Cpp.intelliSenseEngine": "disabled"
+}
