@@ -541,6 +541,14 @@ if ( MSVC )
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/MP> $<$<COMPILE_LANGUAGE:C>:/MP>)
   # Mod.cpp and a few large TUs exceed 64k sections - /bigobj required
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/bigobj>)
+  # Suppress noise of a legacy codebase - keep /W3 but silence pervasive low-value warnings
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/wd4267> $<$<COMPILE_LANGUAGE:CXX>:/wd4305>)
+  add_compile_options($<$<COMPILE_LANGUAGE:C>:/wd4267> $<$<COMPILE_LANGUAGE:C>:/wd4305>)
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/wd4244> $<$<COMPILE_LANGUAGE:C>:/wd4244>)
+  # GCC/clang-only attributes/pragmas used in headers
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/wd5030> $<$<COMPILE_LANGUAGE:C>:/wd5030>)
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/wd4068> $<$<COMPILE_LANGUAGE:C>:/wd4068>)
+  add_compile_definitions(_CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
 endif ()
 # Also disable IPO for Debug on GCC/Clang/Ninja (prevents -flto in Debug)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_DEBUG OFF)

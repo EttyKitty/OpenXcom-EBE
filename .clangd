@@ -1,9 +1,10 @@
 CompileFlags:
-  CompilationDatabase: build
-  Add: [-std=c++17, -Ilibs/rapidyaml, -Isrc]
+  CompilationDatabase: build/debug-fast
+  Remove: ["/Yc*", "/Yu*", "/Fp*", "/FI*"]
+  Add: [-std=c++17, -Ilibs/rapidyaml, -Isrc, -DC4_MSVC, -DC4_MSVC_VERSION=17]
 Diagnostics:
   UnusedIncludes: Strict
-  MissingIncludes: Strict
+  MissingIncludes: None
 Index:
   Background: Build
 InlayHints:
