@@ -790,7 +790,7 @@ void setup(const std::vector<const ModInfo* >& active, bool embeddedOnly)
 		TheVFS.dump(Logger().get(LOG_VERBOSE), "\n" + log_ctx, Options::oxceListVFSContents);
 	}
 }
-[[gnu::unused]]
+[[maybe_unused]]
 static void dump_mods_layers(std::ostream &out, const std::string& prefix, bool verbose) {
 	out << prefix << ModsAvailable.size() << " mods mapped:";
 	for (auto i = ModsAvailable.begin(); i != ModsAvailable.end(); ++i) {

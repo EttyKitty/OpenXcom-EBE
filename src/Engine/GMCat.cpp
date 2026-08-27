@@ -115,11 +115,15 @@ static inline void gmext_write_delta (std::vector<unsigned char> &midi,
 		delta >>= 7;
 	} while (delta > 0 && i <= 3);
 
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
 	while (--i)
 		midi.push_back(data[i] | 0x80);
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
+#endif
 
 	midi.push_back(data[0]);
 }
