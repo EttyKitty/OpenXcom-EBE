@@ -1934,7 +1934,7 @@ void Mod::loadBaseFunction(const std::string& parent, RuleBaseFacilityFunctions&
 				throwOnBadListHelper(parent, reader);
 			}
 		}
-		catch(LoadRuleException& ex)
+		catch(LoadRuleException&)
 		{
 			//context is already included in exception, no need add more
 			throw;

@@ -209,8 +209,8 @@ void OpenGL::refresh(bool smooth, unsigned inwidth, unsigned inheight, unsigned 
 		double h = double(inheight) / double(iheight) * 2;
 		int u1 = 0;
 		int u2 = outwidth * 2;
-		int v1 = outheight;
-		int v2 = - outheight;
+		int v1 = static_cast<int>(outheight);
+		int v2 = -static_cast<int>(outheight);
 
 		glBegin(GL_TRIANGLES);
 		glTexCoord2f(0, 0); glVertex3i(u1, v1, 0);
