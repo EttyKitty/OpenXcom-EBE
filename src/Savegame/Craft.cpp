@@ -61,7 +61,7 @@ Craft::Craft(const RuleCraft *rules, Base *base, int id) : MovingTarget(),
 	_interceptionOrder(0), _takeoff(0), _weapons(),
 	_status("STR_READY"), _lowFuel(false), _mission(false),
 	_inBattlescape(false), _inDogfight(false), _stats(),
-	_isAutoPatrolling(false), _assignedToSlot(false), 
+	_isAutoPatrolling(false), _assignedToSlot(false),
 	_lonAuto(0.0), _latAuto(0.0), _skinIndex(0), _baseEscapePosition(-1,-1,-1)
 {
 	_stats = rules->getStats();
@@ -2311,11 +2311,12 @@ CraftPlacementErrors Craft::validateAddingSoldier(int availableSpace, const Sold
  */
 int Craft::validateAddingVehicles(int spaceOccupied) const
 {
+	if (spaceOccupied <= 0)
+		return 0;
+
 	int maximumAllowed = getSpaceAvailable() / spaceOccupied;
 
-	{
-		maximumAllowed = std::min(maximumAllowed, getMaxVehiclesAndLargeSoldiersClamped() - getNumVehiclesAndLargeSoldiers());
-	}
+	maximumAllowed = std::min(maximumAllowed, getMaxVehiclesAndLargeSoldiersClamped() - getNumVehiclesAndLargeSoldiers());
 
 	if (_rules->getMaxVehicles() > -1)
 	{
