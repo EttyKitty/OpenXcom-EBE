@@ -4933,6 +4933,20 @@ int TileEngine::calculateParabolaVoxel(Position origin, Position target, bool st
 	return result;
 }
 
+void TileEngine::getParabolaTrajectory(Position origin, Position target, std::vector<Position> &trajectory, double curvature, const Position delta)
+{
+	trajectory.clear();
+	if (target == origin) return;
+	trajectory.push_back(origin);
+	calculateParabolaHelper(origin, target, curvature, delta,
+		[&](Position p)
+		{
+			trajectory.push_back(p);
+			return false;
+		}
+	);
+}
+
 /**
  * Calculates z "grounded" value for a particular voxel (used for projectile shadow).
  * @param voxel The voxel to trace down.
@@ -6298,6 +6312,54 @@ bool TileEngine::validateThrow(BattleAction &action, Position originVoxel, Posit
 }
 
 /**
+ * Find valid throw/arcing target voxel and curvature - shared by Projectile::calculateThrow and Map LOF preview (DRY).
+ * Builds candidate list (single voxel for BA_THROW, getTargetVoxelCandidates for arcing) and loops validateThrow.
+ * @param action The action with target tile set (action.target).
+ * @param originVoxel Origin voxel of the throw.
+ * @param outTargetVoxel Found target voxel (valid only if return true).
+ * @param outCurvature Found curvature (valid only if return true).
+ * @param outVoxelType Last V_* test (V_OUTOFBOUNDS if no candidate found).
+ * @param forced Force-fire flag (true bypasses tile validity, arcing only; BA_THROW always false).
+ * @return true if valid curvature found, false otherwise.
+ */
+bool TileEngine::findThrowTargetAndCurvature(BattleAction &action, Position originVoxel, Position &outTargetVoxel, double &outCurvature, int &outVoxelType, bool forced)
+{
+	Tile *targetTile = _save->getTile(action.target);
+	Position baseVoxel = action.target.toVoxel() + Position(8, 8, (targetTile ? 1 + -targetTile->getTerrainLevel() : 12));
+	std::vector<Position> targets;
+	if (action.type == BA_THROW)
+	{
+		targets.push_back(baseVoxel);
+		forced = false;
+	}
+	else
+	{
+		targets = getTargetVoxelCandidates(action.target, forced, action.actor);
+		if (targets.empty())
+		{
+			targets.push_back(baseVoxel);
+		}
+	}
+	outVoxelType = V_OUTOFBOUNDS;
+	outCurvature = 0.0;
+	for (const auto &cand : targets)
+	{
+		double cur = 0.0;
+		int vt = V_OUTOFBOUNDS;
+		if (validateThrow(action, originVoxel, cand, _save->getDepth(), &cur, &vt, forced))
+		{
+			outTargetVoxel = cand;
+			outCurvature = cur;
+			outVoxelType = vt;
+			return true;
+		}
+		// keep last test for caller diagnostics (mirrors Projectile::calculateThrow test handling)
+		outVoxelType = vt;
+	}
+	return false;
+}
+
+/**
  * Recalculates FOV of all units in-game.
  */
 void TileEngine::recalculateFOV()
@@ -6510,6 +6572,281 @@ Position TileEngine::getOriginVoxel(BattleAction &action, Tile *tile)
 		originVoxel.z += 16;
 	}
 	return originVoxel;
+}
+
+/**
+ * Gets the target voxel(s) for a shooting action - 1:1 with Projectile::calculateTrajectory pre-accuracy.
+ * Forced = forceFire + Ctrl (0,0,12 corner), else unit chest/feet/head, object, walls, floor.
+ * @param targetPos Map position being aimed at.
+ * @param forced True if force-fire (Ctrl) is held.
+ * @param shooter Shooter unit for visibility check (player can only target visible units).
+ * @return first candidate voxel (primary aim point)
+ */
+Position TileEngine::getTargetVoxel(Position targetPos, bool forced, BattleUnit *shooter) const
+{
+	auto cands = getTargetVoxelCandidates(targetPos, forced, shooter);
+	if (!cands.empty())
+		return cands.front();
+	return targetPos.toVoxel() + Position(8, 8, 12);
+}
+
+std::vector<Position> TileEngine::getTargetVoxelCandidates(Position targetPos, bool forced, BattleUnit *shooter) const
+{
+	std::vector<Position> candidates;
+	Tile *targetTile = _save ? _save->getTile(targetPos) : nullptr;
+	if (!targetTile)
+	{
+		candidates.push_back(targetPos.toVoxel() + Position(8, 8, 12));
+		return candidates;
+	}
+	Position base = targetPos.toVoxel() + Position(8, 8, 1 + -targetTile->getTerrainLevel());
+	if (forced)
+	{
+		candidates.push_back(targetPos.toVoxel() + Position(0, 0, 12));
+		return candidates;
+	}
+	BattleUnit *tu = targetTile->getOverlappingUnit(_save);
+	bool considerUnit = tu && (!shooter || shooter->getFaction() != FACTION_PLAYER || tu->getVisible());
+	if (considerUnit)
+	{
+		Position unitBase = base;
+		unitBase.z += tu->getFloatHeight();
+		candidates.push_back(unitBase + Position(0, 0, tu->getHeight() / 2 + 1));
+		candidates.push_back(unitBase + Position(0, 0, 2));
+		candidates.push_back(unitBase + Position(0, 0, tu->getHeight() - 1));
+		return candidates;
+	}
+	if (targetTile->getMapData(O_OBJECT) != 0)
+	{
+		Position b = targetPos.toVoxel() + Position(8, 8, 0);
+		candidates.push_back(b + Position(0, 0, 13));
+		candidates.push_back(b + Position(0, 0, 8));
+		candidates.push_back(b + Position(0, 0, 23));
+		candidates.push_back(b + Position(0, 0, 2));
+		return candidates;
+	}
+	if (targetTile->getMapData(O_NORTHWALL) != 0)
+	{
+		Position b = targetPos.toVoxel() + Position(8, 0, 0);
+		candidates.push_back(b + Position(0, 0, 13));
+		candidates.push_back(b + Position(0, 0, 8));
+		candidates.push_back(b + Position(0, 0, 20));
+		candidates.push_back(b + Position(0, 0, 3));
+		return candidates;
+	}
+	if (targetTile->getMapData(O_WESTWALL) != 0)
+	{
+		Position b = targetPos.toVoxel() + Position(0, 8, 0);
+		candidates.push_back(b + Position(0, 0, 13));
+		candidates.push_back(b + Position(0, 0, 8));
+		candidates.push_back(b + Position(0, 0, 20));
+		candidates.push_back(b + Position(0, 0, 2));
+		return candidates;
+	}
+	if (targetTile->getMapData(O_FLOOR) != 0)
+	{
+		candidates.push_back(base);
+		return candidates;
+	}
+	// no floor/object/wall - aim at tile centre height
+	candidates.push_back(targetPos.toVoxel() + Position(8, 8, 12));
+	return candidates;
+}
+
+/**
+ * Single source of truth for aimed-shot target voxel - mirrors ProjectileFlyBState::init.
+ * Handles forced/launch center, arcing base, unit exposure (realistic/classic + off-centre), and wall/object via adjustTargetVoxelFromTileType.
+ * Mutates action.relativeOrigin to the best origin as init does.
+ */
+Position TileEngine::getAimedShotTargetVoxel(BattleAction &action)
+{
+	if (!_save || !action.actor)
+	{
+		return TileEngine::invalid.toVoxel();
+	}
+	Tile *targetTile = _save->getTile(action.target);
+	if (!targetTile)
+	{
+		return TileEngine::invalid.toVoxel();
+	}
+	BattleUnit *shooter = action.actor;
+	bool isPlayer = _save->getSide() == FACTION_PLAYER;
+	bool forceCenter = (action.type == BA_LAUNCH)
+		|| (Options::forceFire && _save->isCtrlPressed(true) && isPlayer)
+		|| (_save->getBattleGame() && !_save->getBattleGame()->getPanicHandled());
+	if (forceCenter)
+	{
+		Position v = action.target.toVoxel() + voxelTileCenter;
+		if (action.type == BA_LAUNCH)
+		{
+			v.z += 4;
+		}
+		return v;
+	}
+	if (action.weapon && action.weapon->getArcingShot(action.type))
+	{
+		return action.target.toVoxel() + Position(8, 8, 1 + -targetTile->getTerrainLevel());
+	}
+	BattleUnit *targetUnit = targetTile->getUnit();
+	if (!targetUnit)
+	{
+		targetUnit = targetTile->getOverlappingUnit(_save);
+	}
+	bool isUnitTarget = targetUnit && ((shooter->getFaction() != FACTION_PLAYER) || targetUnit->getVisible());
+	if (isUnitTarget)
+	{
+		if (shooter->getPosition() == action.target || targetUnit == shooter)
+		{
+			return action.target.toVoxel() + Position(8, 8, 0);
+		}
+		Tile *originTile = nullptr;
+		if (action.type == BA_LAUNCH && !action.waypoints.empty())
+		{
+			originTile = _save->getTile(action.waypoints.back());
+		}
+		else
+		{
+			originTile = _save->getTile(shooter->getPosition());
+		}
+		Position originVoxel = getOriginVoxel(action, originTile);
+		bool found = false;
+		Position bestPos = TileEngine::invalid;
+		BattleActionOrigin bestOrigin = BattleActionOrigin::CENTRE;
+		size_t bestCount = 0;
+		std::vector<Position> exposed;
+		if (Options::battleRealisticAccuracy)
+		{
+			checkVoxelExposure(&originVoxel, targetTile, shooter, isPlayer, &exposed, nullptr, !isPlayer);
+			if (!exposed.empty())
+			{
+				found = true;
+				bestCount = exposed.size();
+				bestPos = exposed[0];
+				bestOrigin = BattleActionOrigin::CENTRE;
+			}
+			if (Options::oxceEnableOffCentreShooting)
+			{
+				for (auto rel : { BattleActionOrigin::LEFT, BattleActionOrigin::RIGHT })
+				{
+					BattleAction tmp = action;
+					tmp.relativeOrigin = rel;
+					Position o2 = getOriginVoxel(tmp, originTile);
+					exposed.clear();
+					checkVoxelExposure(&o2, targetTile, shooter, isPlayer, &exposed, nullptr, !isPlayer);
+					if (exposed.size() > bestCount)
+					{
+						found = true;
+						bestCount = exposed.size();
+						bestPos = exposed[0];
+						bestOrigin = rel;
+						originVoxel = o2;
+					}
+				}
+				action.relativeOrigin = bestOrigin;
+			}
+			if (found)
+			{
+				return bestPos;
+			}
+		}
+		else
+		{
+			Position scan;
+			found = canTargetUnit(&originVoxel, targetTile, &scan, shooter, isPlayer);
+			if (found)
+			{
+				action.relativeOrigin = BattleActionOrigin::CENTRE;
+				return scan;
+			}
+			if (Options::oxceEnableOffCentreShooting)
+			{
+				for (auto rel : { BattleActionOrigin::LEFT, BattleActionOrigin::RIGHT })
+				{
+					BattleAction tmp = action;
+					tmp.relativeOrigin = rel;
+					Position o2 = getOriginVoxel(tmp, originTile);
+					Position s2;
+					if (canTargetUnit(&o2, targetTile, &s2, shooter, isPlayer))
+					{
+						action.relativeOrigin = rel;
+						return s2;
+					}
+				}
+			}
+			action.relativeOrigin = BattleActionOrigin::CENTRE;
+		}
+		return TileEngine::invalid.toVoxel();
+	}
+	else
+	{
+		Tile *originTile = nullptr;
+		if (action.type == BA_LAUNCH && !action.waypoints.empty())
+		{
+			originTile = _save->getTile(action.waypoints.back());
+		}
+		else
+		{
+			originTile = _save->getTile(shooter->getPosition());
+		}
+		Position originVoxel = getOriginVoxel(action, originTile);
+		return adjustTargetVoxelFromTileType(&originVoxel, targetTile, shooter, isPlayer);
+	}
+}
+
+/**
+ * Check if a line-of-fire hit is intentional (target itself) vs blocking cover.
+ * Used by Map LOF preview to decide green vs red split; kept here to avoid copy-pasting canTargetUnit logic.
+ * Mirrors Projectile impact handling: unit hit intentional only if hitUnit == targetUnit (via getOverlappingUnit for 2x2), terrain only if same tile.
+ */
+bool TileEngine::isLofHitIntentional(VoxelType hitType, Position hitVoxel, Position targetPos) const
+{
+	if (hitType == V_EMPTY)
+	{
+		return true;
+	}
+	if (!_save)
+	{
+		return false;
+	}
+	if (hitType == V_UNIT)
+	{
+		Tile *targetTile = _save->getTile(targetPos);
+		BattleUnit *targetUnit = nullptr;
+		if (targetTile)
+		{
+			targetUnit = targetTile->getOverlappingUnit(_save);
+			if (!targetUnit) targetUnit = targetTile->getUnit();
+		}
+		Tile *hitTile = _save->getTile(hitVoxel.toTile());
+		BattleUnit *hitUnit = nullptr;
+		if (hitTile)
+		{
+			hitUnit = hitTile->getOverlappingUnit(_save);
+			if (!hitUnit) hitUnit = hitTile->getUnit();
+		}
+		if (targetUnit && hitUnit == targetUnit)
+		{
+			return true;
+		}
+		if (!targetUnit && !hitUnit)
+		{
+			return true;
+		}
+		if (targetUnit && hitUnit && hitUnit != targetUnit)
+		{
+			return false;
+		}
+		if (!targetUnit && hitUnit)
+		{
+			return false;
+		}
+		return hitVoxel.toTile() == targetPos;
+	}
+	else
+	{
+		// terrain (V_FLOOR/WESTWALL/NORTHWALL/OBJECT/OUTOFBOUNDS): intentional only if hit at aimed tile itself
+		return hitVoxel.toTile() == targetPos;
+	}
 }
 
 /**

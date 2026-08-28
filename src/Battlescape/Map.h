@@ -76,6 +76,7 @@ private:
 	SavedBattleGame *_save;
 	bool _isTFTD;
 	Surface *_arrow;
+	Surface *_lofDot;
 	Surface *_stunIndicator, *_woundIndicator, *_burnIndicator, *_shockIndicator;
 	bool _anyIndicator, _isAltPressed, _isCtrlPressed;
 	int _spriteWidth, _spriteHeight;
@@ -91,6 +92,23 @@ private:
 	int _cacheHasLOS; // -1 = unknown, 0 = no LOS, 1 = has LOS
 	int _cacheAccuracy; // -1 = unknown
 	int _cacheAccuracyTextColor = -1;
+	// LoF line cache
+	Position _cachedLoFTarget = Position(-1, -1, -1);
+	std::vector<Position> _cachedLoFTrajectory;
+	Position _cachedLoFOriginVoxel = Position(-1, -1, -1);
+	Position _cachedLoFTargetVoxel = Position(-1, -1, -1);
+	BattleUnit* _cachedLoFActor = nullptr;
+	int _cachedLoFActionType = 0;
+	int _cachedLoFRelativeOrigin = 0;
+	bool _cachedLoFKneeled = false;
+	size_t _cachedLoFWaypointCount = 0;
+	VoxelType _cachedLoFHitType = V_EMPTY;
+	Position _cachedLoFHitVoxel = Position(-1, -1, -1);
+	double _cachedLoFHitFraction = 1.0;
+	bool _cachedLoFIsParabola = false;
+	double _cachedLoFCurvature = 0.0;
+	Surface *_lofDotGreen = nullptr;
+	Surface *_lofDotRed = nullptr;
 	int _animFrame;
 	Projectile *_projectile;
 	bool _followProjectile;
@@ -111,6 +129,8 @@ private:
 
 	void drawUnit(UnitSprite &unitSprite, Tile *unitTile, Tile *currTile, Position tileScreenPosition, bool topLayer, BattleUnit* movingUnit = nullptr);
 	void drawTerrain(Surface *surface);
+	void updateLoFCache();
+	void drawLoFLine(Surface *surface);
 	int getTerrainLevel(const Position& pos, int size) const;
 	int getWallShade(TilePart part, Tile* tileFrot);
 	int _iconHeight, _iconWidth, _messageColor;

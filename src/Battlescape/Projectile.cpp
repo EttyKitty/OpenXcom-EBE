@@ -493,78 +493,21 @@ int Projectile::calculateTrajectory(double accuracy, const Position& originVoxel
  */
 int Projectile::calculateThrow(double accuracy)
 {
-	Tile* targetTile = _save->getTile(_action.target);
-
 	Position originVoxel = _save->getTileEngine()->getOriginVoxel(_action, 0);
 	Position targetVoxel;
-	std::vector<Position> targets;
-	double curvature;
-	targetVoxel = _action.target.toVoxel() + Position(8, 8, (1 + -targetTile->getTerrainLevel()));
-	targets.clear();
-	bool forced = false;
-
-	if (_action.type == BA_THROW)
-	{
-		targets.push_back(targetVoxel);
-	}
-	else
-	{
-		BattleUnit* tu = targetTile->getOverlappingUnit(_save);
-		if (Options::forceFire && _save->isCtrlPressed(true) && _save->getSide() == FACTION_PLAYER)
-		{
-			targets.push_back(_action.target.toVoxel() + Position(0, 0, 12));
-			forced = true;
-		}
-		else if (tu && ((_action.actor->getFaction() != FACTION_PLAYER) ||
-						tu->getVisible()))
-		{                                          // unit
-			targetVoxel.z += tu->getFloatHeight(); // ground level is the base
-			targets.push_back(targetVoxel + Position(0, 0, tu->getHeight() / 2 + 1));
-			targets.push_back(targetVoxel + Position(0, 0, 2));
-			targets.push_back(targetVoxel + Position(0, 0, tu->getHeight() - 1));
-		}
-		else if (targetTile->getMapData(O_OBJECT) != 0)
-		{
-			targetVoxel = _action.target.toVoxel() + Position(8, 8, 0);
-			targets.push_back(targetVoxel + Position(0, 0, 13));
-			targets.push_back(targetVoxel + Position(0, 0, 8));
-			targets.push_back(targetVoxel + Position(0, 0, 23));
-			targets.push_back(targetVoxel + Position(0, 0, 2));
-		}
-		else if (targetTile->getMapData(O_NORTHWALL) != 0)
-		{
-			targetVoxel = _action.target.toVoxel() + Position(8, 0, 0);
-			targets.push_back(targetVoxel + Position(0, 0, 13));
-			targets.push_back(targetVoxel + Position(0, 0, 8));
-			targets.push_back(targetVoxel + Position(0, 0, 20));
-			targets.push_back(targetVoxel + Position(0, 0, 3));
-		}
-		else if (targetTile->getMapData(O_WESTWALL) != 0)
-		{
-			targetVoxel = _action.target.toVoxel() + Position(0, 8, 0);
-			targets.push_back(targetVoxel + Position(0, 0, 13));
-			targets.push_back(targetVoxel + Position(0, 0, 8));
-			targets.push_back(targetVoxel + Position(0, 0, 20));
-			targets.push_back(targetVoxel + Position(0, 0, 2));
-		}
-		else if (targetTile->getMapData(O_FLOOR) != 0)
-		{
-			targets.push_back(targetVoxel);
-		}
-	}
-
-	_distance = 0.0f;
+	double curvature = 0.0;
 	int test = V_OUTOFBOUNDS;
-	for (const auto& pos : targets)
+	bool forced = false;
+	if (_action.type != BA_THROW)
 	{
-		targetVoxel = pos;
-		if (_save->getTileEngine()->validateThrow(_action, originVoxel, targetVoxel, _save->getDepth(), &curvature, &test, forced))
-		{
-			break;
-		}
+		forced = Options::forceFire && _save->isCtrlPressed(true) && _save->getSide() == FACTION_PLAYER;
 	}
-	if (!forced && test == V_OUTOFBOUNDS)
-		return test; // no line of fire
+	_distance = 0.0f;
+	if (!_save->getTileEngine()->findThrowTargetAndCurvature(_action, originVoxel, targetVoxel, curvature, test, forced))
+	{
+		if (!forced && test == V_OUTOFBOUNDS)
+			return test; // no line of fire
+	}
 
 	test = V_OUTOFBOUNDS;
 	int tries = 0;
