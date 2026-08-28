@@ -524,7 +524,7 @@ void CraftArmorState::lstSoldiersClick(Action *action)
 			if (armorUnlocked && a)
 			{
 				Craft* craft = s->getCraft();
-				if (craft && !craft->validateArmorChange(s->getArmor()->getSize(), a->getSize()))
+				if (craft && !craft->validateArmorChange(s->getArmor()->getSpaceOccupied(), a->getSpaceOccupied()))
 				{
 					armorUnlocked = false; // armor not valid due to craft constraints
 					_game->pushState(new ErrorMessageState(tr("STR_NOT_ENOUGH_CRAFT_SPACE"), _palette, _game->getMod()->getInterface("soldierInfo")->getElement("errorMessage")->color, "BACK01.SCR", _game->getMod()->getInterface("soldierInfo")->getElement("errorPalette")->color));
@@ -616,7 +616,7 @@ void CraftArmorState::btnDeequipAllArmorClick(Action *action)
 		{
 			Armor *a = soldier->getRules()->getDefaultArmor();
 
-			if (soldier->getCraft() && !soldier->getCraft()->validateArmorChange(soldier->getArmor()->getSize(), a->getSize()))
+			if (soldier->getCraft() && !soldier->getCraft()->validateArmorChange(soldier->getArmor()->getSpaceOccupied(), a->getSpaceOccupied()))
 			{
 				// silently ignore
 				row++;
@@ -656,7 +656,7 @@ void CraftArmorState::btnDeequipCraftArmorClick(Action *action)
 		{
 			Armor *a = s->getRules()->getDefaultArmor();
 
-			if (s->getCraft() && !s->getCraft()->validateArmorChange(s->getArmor()->getSize(), a->getSize()))
+			if (s->getCraft() && !s->getCraft()->validateArmorChange(s->getArmor()->getSpaceOccupied(), a->getSpaceOccupied()))
 			{
 				// silently ignore
 				row++;
